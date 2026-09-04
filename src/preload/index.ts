@@ -21,6 +21,21 @@ const api: ShorterManagerApi = {
     create: (input: TagInput) => ipcRenderer.invoke('tags:create', input),
     update: (id: number, input: TagInput) => ipcRenderer.invoke('tags:update', id, input),
     remove: (id: number) => ipcRenderer.invoke('tags:remove', id)
+  },
+  channel: {
+    getStatus: () => ipcRenderer.invoke('channel:getStatus'),
+    connect: () => ipcRenderer.invoke('channel:connect'),
+    disconnect: () => ipcRenderer.invoke('channel:disconnect'),
+    listVideos: () => ipcRenderer.invoke('channel:listVideos'),
+    refreshVideos: () => ipcRenderer.invoke('channel:refreshVideos'),
+    createIdeaFromVideo: (youtubeVideoId: string) =>
+      ipcRenderer.invoke('channel:createIdeaFromVideo', youtubeVideoId),
+    linkVideoToIdea: (youtubeVideoId: string, ideaId: number) =>
+      ipcRenderer.invoke('channel:linkVideoToIdea', youtubeVideoId, ideaId),
+    unlinkVideo: (youtubeVideoId: string) =>
+      ipcRenderer.invoke('channel:unlinkVideo', youtubeVideoId),
+    setVideoTags: (youtubeVideoId: string, tagIds: number[]) =>
+      ipcRenderer.invoke('channel:setVideoTags', youtubeVideoId, tagIds)
   }
 }
 

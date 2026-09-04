@@ -119,7 +119,21 @@ export function removeIdea(id: number): void {
   getDb().prepare('DELETE FROM ideas WHERE id = ?').run(id)
 }
 
-function getIdeaById(id: number): VideoIdea {
+/** Used when linking an idea to a real published video: syncs status/date with reality. */
+export function markIdeaPublished(id: number, publishDate: string | null): VideoIdea {
+  getDb()
+    .prepare(
+      `UPDATE ideas SET
+         status = 'published',
+         publish_date = COALESCE(@publishDate, publish_date),
+         updated_at = datetime('now')
+       WHERE id = @id`
+    )
+    .run({ id, publishDate })
+  return getIdeaById(id)
+}
+
+export function getIdeaById(id: number): VideoIdea {
   const row = getDb().prepare('SELECT * FROM ideas WHERE id = ?').get(id) as IdeaRow
   return toVideoIdea(row)
 }

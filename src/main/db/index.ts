@@ -89,20 +89,24 @@ function migrate(database: Database.Database): void {
       connected_at TEXT
     );
 
-    -- Réservé pour lier une idée à une vidéo publiée et comparer les performances.
+    -- Vidéos réellement publiées sur la chaîne, optionnellement liées à une idée locale.
     CREATE TABLE IF NOT EXISTS published_videos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       idea_id INTEGER REFERENCES ideas(id) ON DELETE SET NULL,
       youtube_video_id TEXT NOT NULL UNIQUE,
       title TEXT,
+      thumbnail_url TEXT,
       published_at TEXT,
       view_count INTEGER,
       like_count INTEGER,
       comment_count INTEGER,
+      average_view_percentage REAL,
       stats_fetched_at TEXT
     );
   `)
 
   ensureColumn(database, 'objects', 'purchased', 'INTEGER NOT NULL DEFAULT 0')
   ensureColumn(database, 'ideas', 'emoji', 'TEXT')
+  ensureColumn(database, 'published_videos', 'thumbnail_url', 'TEXT')
+  ensureColumn(database, 'published_videos', 'average_view_percentage', 'REAL')
 }

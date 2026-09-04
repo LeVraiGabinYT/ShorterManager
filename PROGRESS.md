@@ -34,6 +34,49 @@ to extend rather than being treated as finished.
   one" semantics), and shoot/publish date each independently as either "any", an exact date, or a
   from/to range. All client-side over the already-fetched ideas list — no new IPC needed.
 
+## Status: v3 — YouTube OAuth connection + video linking (done)
+
+- **OAuth connection** (`src/main/youtube/oauth.ts`, `src/main/youtube/credentials.ts`): loopback
+  HTTP server on a random `127.0.0.1` port + `shell.openExternal` to Google's consent screen,
+  authorization code exchanged for access+refresh tokens, refresh token stored in
+  `channel_connection` (singleton row) and silently refreshed on every API call whenever expired
+  (`getValidAccessToken()`). Verified end-to-end with the user's real Google account — connects
+  once, stays connected. Client credentials read from `credentials/google-oauth.json` (gitignored;
+  falls back to `<userData>/google-oauth.json` for a packaged build), must be a Google **"Desktop
+  app"**-type OAuth client (a "Web application" one was tried first and doesn't work — it requires
+  pre-registering an exact redirect URI/port, whereas Desktop-app clients allow any loopback port).
+- **Fetching recent videos** (`src/main/youtube/videos.ts`, `refreshRecentVideos()`): uploads
+  playlist → `playlistItems.list` → `videos.list` for view/like/comment counts, plus a best-effort
+  YouTube Analytics API call for `averageViewPercentage` (retention) that never blocks the rest of
+  the fetch if it fails. Upserted into `published_videos` by `youtube_video_id`
+  (`src/main/db/publishedVideos.ts`), preserving any existing `idea_id`/tags on refresh. This is a
+  read-cache/explicit-refresh split: `channel:listVideos` reads the local cache only (cheap, safe
+  to call on every relevant screen's mount via `useIdeasData`), `channel:refreshVideos` is the only
+  one that hits the network, triggered by the Channel tab's "Actualiser les vidéos" button.
+- **Idea ↔ real video linking**: from the Channel tab, a video can either become a brand-new idea
+  (`createIdeaFromVideo` — title/status `published`/publishDate copied from the real video) or be
+  linked to an existing not-yet-linked idea; from the Idées/Overview side, `IdeaFormModal` shows
+  the linked video's stats + a clickable link when linked, or a picker of unlinked videos when not.
+  Linking always syncs the idea's status to `published` and its `publishDate` to the video's real
+  date (`markIdeaPublished()`), in both directions. `published_videos.idea_id` is the single
+  relational link; `PublishedVideo.videoUrl` is derived, not stored
+  (`https://www.youtube.com/shorts/<id>`).
+- **Tags bridge between ideas and videos**: a linked video's `tagIds` ARE the linked idea's tags
+  (read via `idea_tags`, not stored separately) — editing them happens on the idea, not the video.
+  An unlinked video keeps its own direct tags in `published_video_tags`, editable straight from the
+  Channel tab/video detail modal (`TagPicker` reused there too). This dual mode is intentional: it
+  lets the future Analyse tab correlate tags with performance even for videos that predate having a
+  local idea, while linked videos stay in sync with the idea automatically.
+- Channel tab video list rows get a green highlight when linked (`ChannelVideoRow.tsx`); clicking a
+  row opens `ChannelVideoDetailModal.tsx` ("la page dédiée") with the same linked-idea details.
+- **`NOT_POSTED_STAT = -1`** (in `src/shared/types.ts`): the agreed sentinel for "this idea isn't
+  linked to a posted video yet" wherever a view/like/comment count is shown for an idea. Not yet
+  consumed anywhere (no per-idea stat display was built beyond the linked-video section in
+  `IdeaFormModal`, which just omits stats entirely when unlinked) — **the constraint that matters
+  going forward is for the Analyse tab (not built yet): any aggregation over view/like/comment
+  counts MUST filter out `NOT_POSTED_STAT`/unlinked entries first**, never average them in as 0 or
+  -1.
+
 ## Status: v1 — Ideas + Objects CRUD + Overview (done)
 
 - Electron + React + TypeScript scaffold via `electron-vite`, Tailwind v4, `better-sqlite3` for
@@ -68,48 +111,24 @@ scheduled → published`), shoot date, publish date, and a multi-select of neede
   migrates cleanly (`ALTER TABLE ... ADD COLUMN` guarded by `ensureColumn()` in
   `src/main/db/index.ts`), all four tabs render, typecheck/lint/build all pass clean.
 
-## Next up (not started) — currently being scoped/built with the user, in this order
+## Next up (not started)
 
-1. **Google OAuth connection to the YouTube channel** (Chaîne YouTube tab) — "connect once" is a
-   hard requirement.
-   - Loopback-redirect flow: main process spins up a temporary local HTTP server on
-     `127.0.0.1:<random port>`, opens the system browser to Google's consent screen
-     (`shell.openExternal`, not a BrowserWindow — Google blocks OAuth in embedded webviews), Google
-     redirects back to the loopback server with the auth code, exchanged server-side for
-     access+refresh tokens.
-   - Needs an OAuth Client ID of type **Desktop app** from Google Cloud Console (the user must
-     create this — being walked through it live). Store the downloaded `client_secret_*.json`
-     locally as `credentials/google-oauth.json` (gitignored), read only by the main process.
-   - Scopes: `youtube.readonly` (channel + uploaded videos + comments — all via YouTube Data API
-     v3) and `yt-analytics.readonly` (YouTube Analytics API — needed specifically for
-     `averageViewPercentage`/retention, which the Data API does not expose).
-   - For the refresh token to not expire after 7 days, the OAuth consent screen's publishing status
-     must be **"In production"** (not "Testing") — the user will see an "unverified app" warning
-     during consent (expected and fine for a personal-use app; verification is not required unless
-     Google flags the scopes as "Restricted", which these are not).
-   - Store tokens in `channel_connection` (id=1 singleton row, already in schema); refresh
-     silently via the token endpoint whenever the access token is expired, before any API call.
-   - `ChannelStatus` (connected/channelId/channelTitle — no tokens) is the only thing ever exposed
-     to the renderer; tokens stay main-process-only.
-2. **Fetch the channel's recent videos** into the Channel tab: title, thumbnail, view/like/comment
-   counts (Data API `videos.list`), and average view percentage (Analytics API `reports.query`).
-   Cache into `published_videos` (upsert by `youtube_video_id`); `PublishedVideo`/`ChannelStatus`
-   types already exist in `src/shared/types.ts` for this.
-3. **Tag a fetched video** directly from the Channel tab's video list, using the same `tags` table
-   as ideas (`published_video_tags` join table already in schema).
-4. **Analyse tab** (new): pick a tag, list every `published_video` carrying it with its stats,
-   compute average/best/worst view count, and surface which other tags co-occur on those same
-   videos. Comments are fetched live on demand (Data API `commentThreads.list`) rather than
-   persisted — no comments table planned, to avoid unbounded local storage growth.
-5. Not yet designed, flagged by the user as wanted eventually: linking a specific idea to the
-   published video it became (manual at first), and comparing an idea's "predicted" tags against
-   how similar-tagged videos actually performed.
+1. **Analyse tab** (new, last piece of the originally-scoped plan): pick a tag, list every
+   `published_video` carrying it with its stats, compute average/best/worst view count (filtering
+   out `NOT_POSTED_STAT` / unlinked-idea entries — see the v3 note above, this is the main
+   correctness trap for this feature), and surface which other tags co-occur on those same videos.
+   Comments were explicitly scoped to be fetched live on demand (Data API `commentThreads.list`)
+   rather than persisted, to avoid unbounded local storage growth — no comments table planned.
+2. Not yet designed, flagged by the user as wanted eventually: comparing an idea's tags against how
+   similar-tagged videos actually performed (i.e. using the Analyse tab's per-tag stats to inform
+   an idea still in the `idea`/`preparation` stage) — likely surfaces in `IdeaFormModal` once the
+   Analyse tab's aggregation logic exists to reuse.
 
 ## Open decisions for whoever picks this up
 
-- OAuth flow is decided (loopback HTTP server + system browser, see above) — the only remaining
-  blocker is the user completing the Google Cloud Console setup (project, enabled APIs, consent
-  screen, Desktop app credentials) and saving the downloaded JSON to
-  `credentials/google-oauth.json`. Once that file exists, wire up `src/main/youtube/oauth.ts`.
-- No versioned migration system for the DB yet (just `CREATE TABLE IF NOT EXISTS`) — fine while
-  the schema only grows, but altering/dropping columns later will need a real migration path.
+- No versioned migration system for the DB yet (just `CREATE TABLE IF NOT EXISTS` +
+  `ensureColumn()` for additive changes) — fine while the schema only grows, but altering/dropping
+  columns later will need a real migration path.
+- `refreshRecentVideos()` always fetches the most recent 25 uploads (`MAX_RECENT_VIDEOS` in
+  `src/main/youtube/videos.ts`) — fine for now, but a channel with many more videos than that will
+  never see its older uploads cached unless this is turned into paginated fetching.

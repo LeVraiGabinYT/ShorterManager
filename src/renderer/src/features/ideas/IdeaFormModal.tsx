@@ -1,27 +1,35 @@
 import { useMemo, useState, type FormEvent, type ReactElement } from 'react'
 import { IDEA_STATUSES } from '@shared/types'
-import type { OwnedObject, Tag, VideoIdea, VideoIdeaInput } from '@shared/types'
-import { toDateInputValue } from '../../lib/format'
+import type { OwnedObject, PublishedVideo, Tag, VideoIdea, VideoIdeaInput } from '@shared/types'
+import { formatDate, toDateInputValue } from '../../lib/format'
 import { TagPicker } from '../tags/TagPicker'
 
 interface IdeaFormModalProps {
   idea: VideoIdea | null
   objects: OwnedObject[]
   tags: Tag[]
+  linkedVideo: PublishedVideo | null
+  unlinkedVideos: PublishedVideo[]
   onClose: () => void
   onSave: (input: VideoIdeaInput) => void
   onDelete?: () => void
   onTagsChanged: () => void
+  onLinkVideo: (youtubeVideoId: string) => void
+  onUnlinkVideo: () => void
 }
 
 export function IdeaFormModal({
   idea,
   objects,
   tags,
+  linkedVideo,
+  unlinkedVideos,
   onClose,
   onSave,
   onDelete,
-  onTagsChanged
+  onTagsChanged,
+  onLinkVideo,
+  onUnlinkVideo
 }: IdeaFormModalProps): ReactElement {
   const [title, setTitle] = useState(idea?.title ?? '')
   const [emoji, setEmoji] = useState(idea?.emoji ?? '')
@@ -150,6 +158,64 @@ export function IdeaFormModal({
               />
             </div>
           </div>
+
+          {idea && (
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1">
+                Vidéo publiée liée
+              </label>
+              {linkedVideo ? (
+                <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3">
+                  <a
+                    href={linkedVideo.videoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm text-emerald-300 underline hover:text-emerald-200"
+                  >
+                    {linkedVideo.title ?? linkedVideo.videoUrl}
+                  </a>
+                  <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400">
+                    <span>👁️ {linkedVideo.viewCount ?? '—'} vues</span>
+                    <span>👍 {linkedVideo.likeCount ?? '—'} likes</span>
+                    <span>💬 {linkedVideo.commentCount ?? '—'} commentaires</span>
+                    <span>📅 {formatDate(linkedVideo.publishedAt)}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onUnlinkVideo}
+                    className="mt-2 text-xs text-gray-400 hover:text-red-300"
+                  >
+                    Délier cette vidéo
+                  </button>
+                </div>
+              ) : unlinkedVideos.length > 0 ? (
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    if (e.target.value) onLinkVideo(e.target.value)
+                  }}
+                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500/60"
+                >
+                  <option value="" className="bg-[#15161a]">
+                    Lier à une vidéo déjà postée...
+                  </option>
+                  {unlinkedVideos.map((video) => (
+                    <option
+                      key={video.youtubeVideoId}
+                      value={video.youtubeVideoId}
+                      className="bg-[#15161a]"
+                    >
+                      {video.title ?? video.youtubeVideoId} ({formatDate(video.publishedAt)})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-xs text-gray-600">
+                  Aucune vidéo postée disponible à lier (onglet « Chaîne YouTube »).
+                </p>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1">Tags</label>

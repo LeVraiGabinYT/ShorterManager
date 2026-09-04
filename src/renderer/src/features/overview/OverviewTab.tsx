@@ -69,8 +69,21 @@ function IdeaListSection({
 }
 
 export function OverviewTab(): ReactElement {
-  const { ideas, objects, objectsById, tags, loading, refresh } = useIdeasData()
+  const {
+    ideas,
+    objects,
+    objectsById,
+    tags,
+    publishedVideos,
+    publishedVideosByIdeaId,
+    loading,
+    refresh
+  } = useIdeasData()
   const [selectedIdea, setSelectedIdea] = useState<VideoIdea | null>(null)
+  const unlinkedVideos = useMemo(
+    () => publishedVideos.filter((v) => v.ideaId === null),
+    [publishedVideos]
+  )
 
   const effective = useMemo(
     () => ideas.map((idea) => ({ idea, ...getEffectiveStatus(idea, objectsById) })),
@@ -97,6 +110,19 @@ export function OverviewTab(): ReactElement {
     if (!selectedIdea) return
     await window.api.ideas.remove(selectedIdea.id)
     setSelectedIdea(null)
+    await refresh()
+  }
+
+  async function handleLinkVideo(youtubeVideoId: string): Promise<void> {
+    if (!selectedIdea) return
+    await window.api.channel.linkVideoToIdea(youtubeVideoId, selectedIdea.id)
+    await refresh()
+  }
+
+  async function handleUnlinkVideo(): Promise<void> {
+    const linkedVideo = selectedIdea ? publishedVideosByIdeaId.get(selectedIdea.id) : null
+    if (!linkedVideo) return
+    await window.api.channel.unlinkVideo(linkedVideo.youtubeVideoId)
     await refresh()
   }
 
@@ -144,10 +170,14 @@ export function OverviewTab(): ReactElement {
           idea={selectedIdea}
           objects={objects}
           tags={tags}
+          linkedVideo={publishedVideosByIdeaId.get(selectedIdea.id) ?? null}
+          unlinkedVideos={unlinkedVideos}
           onClose={() => setSelectedIdea(null)}
           onSave={handleUpdate}
           onDelete={handleDelete}
           onTagsChanged={refresh}
+          onLinkVideo={handleLinkVideo}
+          onUnlinkVideo={handleUnlinkVideo}
         />
       )}
     </div>

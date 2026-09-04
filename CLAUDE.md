@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ShorterManager is a cross-platform desktop app (Electron + React + TypeScript — runs identically on
 macOS, Windows, and Linux; not a native-macOS-only app) for managing the content pipeline of a
-YouTube channel: video ideas, purchased gear/objects, and (eventually) the channel itself via
-YouTube Data API / Google OAuth.
+YouTube channel: video ideas, purchased gear/objects, and the channel itself via YouTube Data API /
+Google OAuth (connected once, tokens refreshed silently afterward).
 
 For current feature status and what to build next, see `PROGRESS.md` — read it at the start of
 any session on this repo before planning work.
@@ -64,18 +64,17 @@ row ↔ camelCase mapping internally (SQL columns are snake_case).
 `ideas` and `objects` are linked many-to-many through `idea_objects` (an idea's `objectIds` are
 read/written as a set on every idea read/write, not incrementally).
 
-`tags` (name + color) attach to both `ideas` (via `idea_tags`) and, once built, fetched YouTube
-videos (via `published_video_tags`) — the same tag vocabulary is meant to connect ideas to real
-channel performance later.
-
-Tables that exist but have no application code yet — reserved for the YouTube integration
-currently being built (see `PROGRESS.md` for the exact plan and where it stands):
+`tags` (name + color) attach to both `ideas` (via `idea_tags`) and fetched YouTube videos (via
+`published_video_tags`) — the same tag vocabulary connects ideas to real channel performance. See
+"Tags bridge" below for how a linked video's tags actually resolve.
 
 - `channel_connection` — OAuth tokens for the connected Google/YouTube channel (singleton row,
   `id = 1`). Never expose its contents to the renderer directly — only a derived `ChannelStatus`
-  (connected/channelId/channelTitle).
-- `published_videos` / `published_video_tags` — YouTube videos (optionally linked back to the
-  `idea` they came from) with cached stats, for performance comparison by tag.
+  (connected/channelId/channelTitle), produced by `getChannelStatus()` in `src/main/db/channel.ts`.
+- `published_videos` — YouTube videos fetched from the channel, optionally linked back to the
+  `idea` they came from via `idea_id` (nullable FK), with cached view/like/comment counts and
+  `average_view_percentage`. Upserted by `youtube_video_id`, never duplicated. Not yet consumed by
+  any analysis/aggregation feature (that's the planned Analyse tab — see `PROGRESS.md`).
 
 ### IPC
 
@@ -118,16 +117,49 @@ applied to the already-fetched ideas array. If a new filter dimension is added, 
 `IdeaFiltersState`/`DEFAULT_IDEA_FILTERS` and `filterIdeas()` together — there's no IPC-side
 filtering to keep in sync.
 
-### YouTube integration (in progress)
+### YouTube integration
 
-Being built per the plan in `PROGRESS.md`. Key constraint driving the design: OAuth must happen
-only once — the refresh token is stored in `channel_connection` and silently refreshed, never
-requiring interactive login again (as long as the Google Cloud OAuth consent screen is in
-"Production" status, not "Testing"). The loopback-redirect flow (temporary local HTTP server +
-`shell.openExternal`, not a `BrowserWindow`) is the only viable interactive-login mechanism for an
-Electron desktop app — Google blocks OAuth consent inside embedded webviews. OAuth client
-credentials live in a local, gitignored `credentials/google-oauth.json` (Google's own downloadable
-format), read only by the main process; the renderer only ever sees a `ChannelStatus`, never
-tokens. Two separate Google APIs are involved: YouTube Data API v3 (videos, stats, comments) and
-YouTube Analytics API (`averageViewPercentage`/retention specifically — not available from the
-Data API).
+Key constraint that drove the design: OAuth must happen only once — the refresh token is stored in
+`channel_connection` and silently refreshed via `getValidAccessToken()` in `src/main/youtube/oauth.ts`
+(checked/refreshed before every API call), never requiring interactive login again, as long as the
+Google Cloud OAuth consent screen is in "Production" status (not "Testing", which caps refresh
+tokens at 7 days). The loopback-redirect flow (temporary local HTTP server + `shell.openExternal`,
+not a `BrowserWindow`) is the only viable interactive-login mechanism for an Electron desktop app —
+Google blocks OAuth consent inside embedded webviews. **The OAuth client in Google Cloud Console
+must be of type "Desktop app"**, not "Web application" — confirmed the hard way: a Web application
+client requires pre-registering an exact redirect URI including port, while a Desktop app client
+accepts any `127.0.0.1:<port>` loopback redirect, which is what the random-port server needs.
+Credentials live in a local, gitignored `credentials/google-oauth.json` (Google's own downloadable
+format; `src/main/youtube/credentials.ts` also falls back to `<userData>/google-oauth.json` for a
+packaged build), read only by the main process — the renderer only ever sees a `ChannelStatus` or
+`PublishedVideo[]`, never tokens.
+
+Two separate Google APIs are involved, both called from `src/main/youtube/videos.ts`: YouTube Data
+API v3 (uploads playlist → video list → stats) and YouTube Analytics API
+(`averageViewPercentage`/retention specifically — not available from the Data API). The Analytics
+call is wrapped to fail silently (retention just stays `null`) so a hiccup there never breaks the
+rest of a video refresh.
+
+`channel:listVideos` (reads the local `published_videos` cache) and `channel:refreshVideos` (hits
+the YouTube APIs, upserts, then returns the cache) are deliberately separate IPC calls — the former
+is cheap and called from `useIdeasData()` on every relevant screen's mount, the latter is
+network/quota-costly and only triggered by the Channel tab's explicit "Actualiser" button. Never
+make `listVideos` call out to the network.
+
+**Tags bridge**: once a `published_video` is linked to an idea (`idea_id` set), its `tagIds` in
+`PublishedVideo` ARE the linked idea's tags — read live from `idea_tags`, not stored redundantly.
+Editing them only happens through the idea (`IdeaFormModal`'s `TagPicker`), not the video. An
+unlinked video keeps independently-assigned tags in `published_video_tags`, editable directly from
+`ChannelVideoDetailModal`. This split (see `toPublishedVideo()` in
+`src/main/db/publishedVideos.ts`) is what lets the future Analyse tab tag historical videos that
+have no corresponding local idea, while linked videos never drift out of sync with their idea.
+
+**Linking** (`src/main/youtube/videos.ts`): `createIdeaFromVideo()` makes a new idea from a real
+video (title/status `published`/publishDate copied over) and links it; `linkVideoToIdea()` links an
+_existing_ idea instead. Both paths call `markIdeaPublished()` (`src/main/db/ideas.ts`), which
+forces the idea's `status` to `published` and syncs `publishDate` to the video's real date — this
+is a deliberate one-way sync (video truth → idea fields), not a two-way binding.
+
+`NOT_POSTED_STAT = -1` (`src/shared/types.ts`) is the agreed sentinel for an idea's view/like/comment
+count when it has no linked video. **Any future aggregation (the Analyse tab) must filter these out
+before averaging** — never treat a `-1` or an idea with no linked video as a real 0.

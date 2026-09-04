@@ -70,10 +70,15 @@ export type VideoIdeaInput = Omit<
   tagIds: number[]
 }
 
+// Sentinel used for an idea's view/like/comment count when it isn't linked to a posted video yet.
+// Never include entries with this value in averages or other tag-performance analysis.
+export const NOT_POSTED_STAT = -1
+
 export interface PublishedVideo {
   id: number
   ideaId: number | null
   youtubeVideoId: string
+  videoUrl: string
   title: string | null
   thumbnailUrl: string | null
   publishedAt: string | null
@@ -89,6 +94,12 @@ export interface ChannelStatus {
   connected: boolean
   channelId: string | null
   channelTitle: string | null
+}
+
+export interface ChannelConnectResult {
+  success: boolean
+  error?: string
+  status: ChannelStatus
 }
 
 export interface ShorterManagerApi {
@@ -109,5 +120,16 @@ export interface ShorterManagerApi {
     create: (input: TagInput) => Promise<Tag>
     update: (id: number, input: TagInput) => Promise<Tag>
     remove: (id: number) => Promise<void>
+  }
+  channel: {
+    getStatus: () => Promise<ChannelStatus>
+    connect: () => Promise<ChannelConnectResult>
+    disconnect: () => Promise<void>
+    listVideos: () => Promise<PublishedVideo[]>
+    refreshVideos: () => Promise<{ videos: PublishedVideo[]; error?: string }>
+    createIdeaFromVideo: (youtubeVideoId: string) => Promise<VideoIdea>
+    linkVideoToIdea: (youtubeVideoId: string, ideaId: number) => Promise<void>
+    unlinkVideo: (youtubeVideoId: string) => Promise<void>
+    setVideoTags: (youtubeVideoId: string, tagIds: number[]) => Promise<void>
   }
 }

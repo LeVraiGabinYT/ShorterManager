@@ -7,7 +7,17 @@ import { IdeaFilters } from './IdeaFilters'
 import { IdeaFormModal } from './IdeaFormModal'
 
 export function IdeasTab(): ReactElement {
-  const { ideas, objects, objectsById, tags, tagsById, loading, refresh } = useIdeasData()
+  const {
+    ideas,
+    objects,
+    objectsById,
+    tags,
+    tagsById,
+    publishedVideos,
+    publishedVideosByIdeaId,
+    loading,
+    refresh
+  } = useIdeasData()
   const [editingIdea, setEditingIdea] = useState<VideoIdea | null>(null)
   const [creating, setCreating] = useState(false)
   const [filters, setFilters] = useState<IdeaFiltersState>(DEFAULT_IDEA_FILTERS)
@@ -15,6 +25,10 @@ export function IdeasTab(): ReactElement {
   const filteredIdeas = useMemo(
     () => filterIdeas(ideas, filters, objectsById),
     [ideas, filters, objectsById]
+  )
+  const unlinkedVideos = useMemo(
+    () => publishedVideos.filter((v) => v.ideaId === null),
+    [publishedVideos]
   )
 
   async function handleCreate(input: VideoIdeaInput): Promise<void> {
@@ -34,6 +48,19 @@ export function IdeasTab(): ReactElement {
     if (!editingIdea) return
     await window.api.ideas.remove(editingIdea.id)
     setEditingIdea(null)
+    await refresh()
+  }
+
+  async function handleLinkVideo(youtubeVideoId: string): Promise<void> {
+    if (!editingIdea) return
+    await window.api.channel.linkVideoToIdea(youtubeVideoId, editingIdea.id)
+    await refresh()
+  }
+
+  async function handleUnlinkVideo(): Promise<void> {
+    const linkedVideo = editingIdea ? publishedVideosByIdeaId.get(editingIdea.id) : null
+    if (!linkedVideo) return
+    await window.api.channel.unlinkVideo(linkedVideo.youtubeVideoId)
     await refresh()
   }
 
@@ -82,9 +109,13 @@ export function IdeasTab(): ReactElement {
           idea={null}
           objects={objects}
           tags={tags}
+          linkedVideo={null}
+          unlinkedVideos={unlinkedVideos}
           onClose={() => setCreating(false)}
           onSave={handleCreate}
           onTagsChanged={refresh}
+          onLinkVideo={() => {}}
+          onUnlinkVideo={() => {}}
         />
       )}
 
@@ -93,10 +124,14 @@ export function IdeasTab(): ReactElement {
           idea={editingIdea}
           objects={objects}
           tags={tags}
+          linkedVideo={publishedVideosByIdeaId.get(editingIdea.id) ?? null}
+          unlinkedVideos={unlinkedVideos}
           onClose={() => setEditingIdea(null)}
           onSave={handleUpdate}
           onDelete={handleDelete}
           onTagsChanged={refresh}
+          onLinkVideo={handleLinkVideo}
+          onUnlinkVideo={handleUnlinkVideo}
         />
       )}
     </div>
