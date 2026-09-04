@@ -131,5 +131,6 @@ export interface ShorterManagerApi {
     linkVideoToIdea: (youtubeVideoId: string, ideaId: number) => Promise<void>
     unlinkVideo: (youtubeVideoId: string) => Promise<void>
     setVideoTags: (youtubeVideoId: string, tagIds: number[]) => Promise<void>
+    searchVideos: (query: string) => Promise<{ videos: PublishedVideo[]; error?: string }>
   }
 }

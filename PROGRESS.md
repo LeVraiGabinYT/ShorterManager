@@ -111,6 +111,28 @@ scheduled → published`), shoot date, publish date, and a multi-select of neede
   migrates cleanly (`ALTER TABLE ... ADD COLUMN` guarded by `ensureColumn()` in
   `src/main/db/index.ts`), all four tabs render, typecheck/lint/build all pass clean.
 
+## Status: v3.1 — Searchable pickers + channel-wide video search (done)
+
+Follow-up after real usage: with a channel posting daily, the plain `<select>`s for linking
+ideas↔videos became unusable (too many entries to scroll), and `refreshRecentVideos()`'s 25-video
+cap meant older videos (e.g. ~2 months back) were never even fetched, so no local search could find
+them either.
+
+- **`SearchablePicker`** (`src/renderer/src/components/SearchablePicker.tsx`, new, first
+  cross-feature component in `components/`): a generic type-to-filter combobox replacing the old
+  native `<select>`s in `IdeaFormModal` (picking a video to link) and `ChannelVideoDetailModal`
+  (picking an idea to link). Always renders its input even with zero items (shows `emptyLabel`
+  underneath instead) — the earlier version hid the input entirely on an empty list, which read as
+  "the search field is missing" to the user.
+- **Channel-wide video search** (`searchChannelVideos()` in `src/main/youtube/videos.ts`, IPC
+  `channel:searchVideos`): calls the Data API's `search.list?forMine=true&type=video&q=...`
+  endpoint — this searches _all_ of the channel's uploads, not just the cached most-recent-25 —
+  then upserts any matches into `published_videos` via the same `upsertVideoMetas()` helper
+  `refreshRecentVideos()` uses (extracted during this change). A search bar now sits above the
+  video list in the Channel tab; results replace the list view until "Réinitialiser" is clicked.
+  Because matches get cached on search, they immediately become linkable everywhere (the
+  `IdeaFormModal` video picker included) without any extra plumbing.
+
 ## Next up (not started)
 
 1. **Analyse tab** (new, last piece of the originally-scoped plan): pick a tag, list every
@@ -129,6 +151,6 @@ scheduled → published`), shoot date, publish date, and a multi-select of neede
 - No versioned migration system for the DB yet (just `CREATE TABLE IF NOT EXISTS` +
   `ensureColumn()` for additive changes) — fine while the schema only grows, but altering/dropping
   columns later will need a real migration path.
-- `refreshRecentVideos()` always fetches the most recent 25 uploads (`MAX_RECENT_VIDEOS` in
-  `src/main/youtube/videos.ts`) — fine for now, but a channel with many more videos than that will
-  never see its older uploads cached unless this is turned into paginated fetching.
+- `refreshRecentVideos()` still only caches the most recent 25 uploads (`MAX_RECENT_VIDEOS`) —
+  no longer a dead end now that `searchChannelVideos()` can reach older videos on demand by title,
+  but there's still no way to browse/page through the _full_ upload history at once.

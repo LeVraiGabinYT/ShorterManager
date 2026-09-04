@@ -9,6 +9,7 @@ import {
   createIdeaFromVideo,
   linkVideoToIdea,
   refreshRecentVideos,
+  searchChannelVideos,
   setVideoTags,
   unlinkVideo
 } from './youtube/videos'
@@ -60,4 +61,11 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('channel:setVideoTags', (_event, youtubeVideoId: string, tagIds: number[]) =>
     setVideoTags(youtubeVideoId, tagIds)
   )
+  ipcMain.handle('channel:searchVideos', async (_event, query: string) => {
+    try {
+      return { videos: await searchChannelVideos(query) }
+    } catch (error) {
+      return { videos: [], error: error instanceof Error ? error.message : String(error) }
+    }
+  })
 }

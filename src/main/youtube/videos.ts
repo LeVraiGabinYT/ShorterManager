@@ -90,33 +90,88 @@ async function getAverageViewPercentages(videoIds: string[]): Promise<Map<string
   return result
 }
 
-export async function refreshRecentVideos(): Promise<PublishedVideo[]> {
-  const playlistId = await getUploadsPlaylistId()
-  const items = await getRecentPlaylistItems(playlistId)
-  const videoIds = items.map((item) => item.contentDetails.videoId)
+interface VideoMeta {
+  videoId: string
+  title: string
+  thumbnailUrl: string | null
+  publishedAt: string
+}
 
+async function upsertVideoMetas(metas: VideoMeta[]): Promise<void> {
+  const videoIds = metas.map((m) => m.videoId)
   const [stats, retention] = await Promise.all([
     getVideoStatistics(videoIds),
     getAverageViewPercentages(videoIds)
   ])
 
-  for (const item of items) {
-    const videoId = item.contentDetails.videoId
-    const videoStats = stats.get(videoId)
+  for (const meta of metas) {
+    const videoStats = stats.get(meta.videoId)
     upsertPublishedVideo({
-      youtubeVideoId: videoId,
-      title: item.snippet.title,
-      thumbnailUrl:
-        item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url ?? null,
-      publishedAt: item.contentDetails.videoPublishedAt ?? item.snippet.publishedAt,
+      youtubeVideoId: meta.videoId,
+      title: meta.title,
+      thumbnailUrl: meta.thumbnailUrl,
+      publishedAt: meta.publishedAt,
       viewCount: videoStats?.viewCount ?? null,
       likeCount: videoStats?.likeCount ?? null,
       commentCount: videoStats?.commentCount ?? null,
-      averageViewPercentage: retention.get(videoId) ?? null
+      averageViewPercentage: retention.get(meta.videoId) ?? null
     })
   }
+}
+
+export async function refreshRecentVideos(): Promise<PublishedVideo[]> {
+  const playlistId = await getUploadsPlaylistId()
+  const items = await getRecentPlaylistItems(playlistId)
+
+  await upsertVideoMetas(
+    items.map((item) => ({
+      videoId: item.contentDetails.videoId,
+      title: item.snippet.title,
+      thumbnailUrl:
+        item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url ?? null,
+      publishedAt: item.contentDetails.videoPublishedAt ?? item.snippet.publishedAt
+    }))
+  )
 
   return listPublishedVideos()
+}
+
+interface SearchResultItem {
+  id: { videoId: string }
+  snippet: {
+    title: string
+    publishedAt: string
+    thumbnails?: { medium?: { url: string }; default?: { url: string } }
+  }
+}
+
+/**
+ * Searches the whole channel (not just the most recently cached videos) via the Data API's
+ * search endpoint — needed because refreshRecentVideos() only ever caches the latest
+ * MAX_RECENT_VIDEOS uploads, so older videos need an explicit, on-demand lookup.
+ */
+export async function searchChannelVideos(query: string): Promise<PublishedVideo[]> {
+  const trimmed = query.trim()
+  if (!trimmed) return []
+
+  const data = await youtubeFetch<{ items?: SearchResultItem[] }>(
+    `https://www.googleapis.com/youtube/v3/search?part=snippet&forMine=true&type=video&order=date&maxResults=25&q=${encodeURIComponent(trimmed)}`
+  )
+  const items = data.items ?? []
+  if (items.length === 0) return []
+
+  await upsertVideoMetas(
+    items.map((item) => ({
+      videoId: item.id.videoId,
+      title: item.snippet.title,
+      thumbnailUrl:
+        item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url ?? null,
+      publishedAt: item.snippet.publishedAt
+    }))
+  )
+
+  const foundIds = new Set(items.map((item) => item.id.videoId))
+  return listPublishedVideos().filter((v) => foundIds.has(v.youtubeVideoId))
 }
 
 export function createIdeaFromVideo(youtubeVideoId: string): VideoIdea {

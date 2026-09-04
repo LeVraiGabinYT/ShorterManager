@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent, type ReactElement } from 'react'
 import { IDEA_STATUSES } from '@shared/types'
 import type { OwnedObject, PublishedVideo, Tag, VideoIdea, VideoIdeaInput } from '@shared/types'
+import { SearchablePicker } from '../../components/SearchablePicker'
 import { formatDate, toDateInputValue } from '../../lib/format'
 import { TagPicker } from '../tags/TagPicker'
 
@@ -188,31 +189,17 @@ export function IdeaFormModal({
                     Délier cette vidéo
                   </button>
                 </div>
-              ) : unlinkedVideos.length > 0 ? (
-                <select
-                  defaultValue=""
-                  onChange={(e) => {
-                    if (e.target.value) onLinkVideo(e.target.value)
-                  }}
-                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500/60"
-                >
-                  <option value="" className="bg-[#15161a]">
-                    Lier à une vidéo déjà postée...
-                  </option>
-                  {unlinkedVideos.map((video) => (
-                    <option
-                      key={video.youtubeVideoId}
-                      value={video.youtubeVideoId}
-                      className="bg-[#15161a]"
-                    >
-                      {video.title ?? video.youtubeVideoId} ({formatDate(video.publishedAt)})
-                    </option>
-                  ))}
-                </select>
               ) : (
-                <p className="text-xs text-gray-600">
-                  Aucune vidéo postée disponible à lier (onglet « Chaîne YouTube »).
-                </p>
+                <SearchablePicker
+                  items={unlinkedVideos}
+                  getKey={(video) => video.youtubeVideoId}
+                  getLabel={(video) =>
+                    `${video.title ?? video.youtubeVideoId} (${formatDate(video.publishedAt)})`
+                  }
+                  onSelect={(video) => onLinkVideo(video.youtubeVideoId)}
+                  placeholder="Rechercher une vidéo déjà postée par titre..."
+                  emptyLabel="Aucune vidéo postée disponible à lier (onglet « Chaîne YouTube »)."
+                />
               )}
             </div>
           )}

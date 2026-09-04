@@ -1,5 +1,6 @@
 import { useState, type ReactElement } from 'react'
 import type { PublishedVideo, Tag, VideoIdea } from '@shared/types'
+import { SearchablePicker } from '../../components/SearchablePicker'
 import { formatDate } from '../../lib/format'
 import { TagPicker } from '../tags/TagPicker'
 
@@ -96,25 +97,19 @@ export function ChannelVideoDetailModal({
                 Ajouter à la liste d’idées (nouvelle idée « Publiée »)
               </button>
 
-              {unlinkedIdeas.length > 0 && (
-                <select
-                  defaultValue=""
-                  onChange={(e) => {
-                    if (e.target.value) onLinkToIdea(Number(e.target.value))
-                  }}
-                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500/60"
-                >
-                  <option value="" className="bg-[#15161a]">
-                    ...ou lier à une idée existante
-                  </option>
-                  {unlinkedIdeas.map((idea) => (
-                    <option key={idea.id} value={idea.id} className="bg-[#15161a]">
-                      {idea.emoji ? `${idea.emoji} ` : ''}
-                      {idea.title}
-                    </option>
-                  ))}
-                </select>
-              )}
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1">
+                  ...ou lier à une idée existante
+                </label>
+                <SearchablePicker
+                  items={unlinkedIdeas}
+                  getKey={(idea) => idea.id}
+                  getLabel={(idea) => (idea.emoji ? `${idea.emoji} ${idea.title}` : idea.title)}
+                  onSelect={(idea) => onLinkToIdea(idea.id)}
+                  placeholder="Rechercher une idée par titre..."
+                  emptyLabel="Aucune idée disponible à lier."
+                />
+              </div>
             </div>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactElement } from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react'
 import type { ChannelStatus, PublishedVideo } from '@shared/types'
 import { useIdeasData } from '../../hooks/useIdeasData'
 import { ChannelVideoDetailModal } from './ChannelVideoDetailModal'
@@ -11,6 +11,10 @@ export function ChannelTab(): ReactElement {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedVideo, setSelectedVideo] = useState<PublishedVideo | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<PublishedVideo[] | null>(null)
+  const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
 
   useEffect(() => {
     window.api.channel.getStatus().then(setStatus)
@@ -21,6 +25,7 @@ export function ChannelTab(): ReactElement {
     () => ideas.filter((idea) => !publishedVideos.some((v) => v.ideaId === idea.id)),
     [ideas, publishedVideos]
   )
+  const videosToShow = searchResults ?? publishedVideos
 
   async function handleConnect(): Promise<void> {
     setConnecting(true)
@@ -71,6 +76,24 @@ export function ChannelTab(): ReactElement {
     await refreshIdeasData()
   }
 
+  async function handleSearch(e: FormEvent): Promise<void> {
+    e.preventDefault()
+    if (!searchQuery.trim()) return
+    setSearching(true)
+    setSearchError(null)
+    const result = await window.api.channel.searchVideos(searchQuery.trim())
+    setSearching(false)
+    if (result.error) setSearchError(result.error)
+    setSearchResults(result.videos)
+    await refreshIdeasData()
+  }
+
+  function handleClearSearch(): void {
+    setSearchQuery('')
+    setSearchResults(null)
+    setSearchError(null)
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-6 py-4">
@@ -107,13 +130,53 @@ export function ChannelTab(): ReactElement {
               </p>
             )}
 
-            {publishedVideos.length === 0 ? (
+            <form onSubmit={handleSearch} className="flex gap-2">
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Chercher une vidéo sur toute la chaîne (pas seulement les vidéos ci-dessous)..."
+                className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-gray-100 outline-none focus:border-blue-500/60"
+              />
+              <button
+                type="submit"
+                disabled={searching}
+                className="rounded-md border border-white/10 px-3 py-1.5 text-sm text-gray-300 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {searching ? 'Recherche...' : 'Chercher sur la chaîne'}
+              </button>
+              {searchResults !== null && (
+                <button
+                  type="button"
+                  onClick={handleClearSearch}
+                  className="text-sm text-gray-500 hover:text-gray-300"
+                >
+                  Réinitialiser
+                </button>
+              )}
+            </form>
+
+            {searchError && (
+              <p className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                {searchError}
+              </p>
+            )}
+
+            {searchResults !== null && (
+              <p className="text-xs text-gray-500">
+                {searchResults.length} résultat{searchResults.length > 1 ? 's' : ''} pour «{' '}
+                {searchQuery} » sur la chaîne
+              </p>
+            )}
+
+            {videosToShow.length === 0 ? (
               <p className="text-sm text-gray-500">
-                Aucune vidéo récupérée pour l’instant. Clique sur « Actualiser les vidéos ».
+                {searchResults !== null
+                  ? 'Aucune vidéo trouvée.'
+                  : 'Aucune vidéo récupérée pour l’instant. Clique sur « Actualiser les vidéos ».'}
               </p>
             ) : (
               <div className="space-y-2">
-                {publishedVideos.map((video) => (
+                {videosToShow.map((video) => (
                   <ChannelVideoRow
                     key={video.youtubeVideoId}
                     video={video}

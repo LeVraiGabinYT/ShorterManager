@@ -111,6 +111,11 @@ offers a "+ Nouveau tag" mini-form (name + a swatch from `TAG_COLOR_PRESETS`). A
 lets a user create a tag through this component must pass an `onTagsChanged` callback that
 re-fetches the tag list (there's no shared tags store either).
 
+`src/renderer/src/components/` holds cross-feature UI with no domain data of its own — currently
+just `SearchablePicker.tsx`, a generic type-to-filter combobox (used for linking an idea to a video
+and vice versa) that only filters whatever `items` array it's given; it has no idea of "ideas" or
+"videos" and does no network calls itself.
+
 Idea filtering (`IdeasTab`) is entirely client-side and stateless server-side: `IdeaFilters.tsx`
 owns the filter UI, `src/renderer/src/lib/ideaFilters.ts`'s `filterIdeas()` is the pure function
 applied to the already-fetched ideas array. If a new filter dimension is added, extend
@@ -145,6 +150,15 @@ the YouTube APIs, upserts, then returns the cache) are deliberately separate IPC
 is cheap and called from `useIdeasData()` on every relevant screen's mount, the latter is
 network/quota-costly and only triggered by the Channel tab's explicit "Actualiser" button. Never
 make `listVideos` call out to the network.
+
+`refreshRecentVideos()` only ever caches the most recent `MAX_RECENT_VIDEOS` (25) uploads — for a
+channel that posts often, older videos are never fetched this way. `searchChannelVideos()` (IPC
+`channel:searchVideos`) exists specifically for that gap: it hits `search.list?forMine=true` (a
+different, costlier Data API endpoint that searches the _whole_ channel by keyword, not just the
+cache), then funnels matches through the same `upsertVideoMetas()` helper as the recent-videos
+refresh so they're immediately cached and usable everywhere. The Channel tab's search bar is the
+only UI for this; the searchable pickers elsewhere (see below) only ever search what's already
+cached.
 
 **Tags bridge**: once a `published_video` is linked to an idea (`idea_id` set), its `tagIds` in
 `PublishedVideo` ARE the linked idea's tags — read live from `idea_tags`, not stored redundantly.
