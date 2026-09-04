@@ -1,9 +1,11 @@
 import { useState, type ReactElement } from 'react'
+import { OverviewTab } from './features/overview/OverviewTab'
 import { IdeasTab } from './features/ideas/IdeasTab'
 import { ObjectsTab } from './features/objects/ObjectsTab'
 import { ChannelTab } from './features/channel/ChannelTab'
 
 const TABS = [
+  { id: 'overview', label: 'Vue d’ensemble' },
   { id: 'ideas', label: 'Idées' },
   { id: 'objects', label: 'Objets achetés' },
   { id: 'channel', label: 'Chaîne YouTube' }
@@ -12,7 +14,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 
 function App(): ReactElement {
-  const [activeTab, setActiveTab] = useState<TabId>('ideas')
+  const [activeTab, setActiveTab] = useState<TabId>('overview')
 
   return (
     <div className="flex h-screen flex-col bg-[#0b0c0f]">
@@ -33,6 +35,7 @@ function App(): ReactElement {
       </nav>
 
       <main className="flex-1 overflow-hidden">
+        {activeTab === 'overview' && <OverviewTab />}
         {activeTab === 'ideas' && <IdeasTab />}
         {activeTab === 'objects' && <ObjectsTab />}
         {activeTab === 'channel' && <ChannelTab />}

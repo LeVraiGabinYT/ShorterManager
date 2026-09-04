@@ -39,6 +39,18 @@ export function ObjectsTab(): ReactElement {
     await refresh()
   }
 
+  async function handleTogglePurchased(obj: OwnedObject): Promise<void> {
+    await window.api.objects.update(obj.id, {
+      name: obj.name,
+      description: obj.description,
+      purchaseDate: obj.purchaseDate,
+      price: obj.price,
+      link: obj.link,
+      purchased: !obj.purchased
+    })
+    await refresh()
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-6 py-4">
@@ -59,22 +71,34 @@ export function ObjectsTab(): ReactElement {
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {objects.map((obj) => (
-              <button
+              <div
                 key={obj.id}
                 onClick={() => setEditingObject(obj)}
-                className="w-full text-left rounded-lg border border-white/10 bg-white/[0.03] p-4 hover:bg-white/[0.06] hover:border-white/20 transition-colors"
+                className="w-full cursor-pointer rounded-lg border border-white/10 bg-white/[0.03] p-4 hover:bg-white/[0.06] hover:border-white/20 transition-colors"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <h3 className="font-medium text-gray-100 leading-snug">{obj.name}</h3>
+                  <label className="flex items-start gap-2" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={obj.purchased}
+                      onChange={() => handleTogglePurchased(obj)}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/20 bg-white/5 accent-blue-600"
+                    />
+                    <h3 className="font-medium text-gray-100 leading-snug">{obj.name}</h3>
+                  </label>
                   <span className="shrink-0 text-sm text-gray-300">{formatPrice(obj.price)}</span>
                 </div>
                 <div className="mt-2 text-xs text-gray-400">
-                  Acheté le {formatDate(obj.purchaseDate)}
+                  {obj.purchased ? (
+                    <>Acheté le {formatDate(obj.purchaseDate)}</>
+                  ) : (
+                    <span className="text-red-300">Pas encore acheté</span>
+                  )}
                 </div>
                 {obj.description && (
                   <p className="mt-2 text-xs text-gray-500 line-clamp-2">{obj.description}</p>
                 )}
-              </button>
+              </div>
             ))}
           </div>
         )}

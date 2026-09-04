@@ -16,6 +16,18 @@ export function getDb(): Database.Database {
   return db
 }
 
+function ensureColumn(
+  database: Database.Database,
+  table: string,
+  column: string,
+  definition: string
+): void {
+  const columns = database.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]
+  if (!columns.some((c) => c.name === column)) {
+    database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+  }
+}
+
 function migrate(database: Database.Database): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS objects (
@@ -25,6 +37,7 @@ function migrate(database: Database.Database): void {
       purchase_date TEXT,
       price REAL,
       link TEXT,
+      purchased INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -70,4 +83,6 @@ function migrate(database: Database.Database): void {
       stats_fetched_at TEXT
     );
   `)
+
+  ensureColumn(database, 'objects', 'purchased', 'INTEGER NOT NULL DEFAULT 0')
 }

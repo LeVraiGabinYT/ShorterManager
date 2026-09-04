@@ -8,6 +8,7 @@ interface ObjectRow {
   purchase_date: string | null
   price: number | null
   link: string | null
+  purchased: number
   created_at: string
   updated_at: string
 }
@@ -20,6 +21,7 @@ function toOwnedObject(row: ObjectRow): OwnedObject {
     purchaseDate: row.purchase_date,
     price: row.price,
     link: row.link,
+    purchased: Boolean(row.purchased),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }
@@ -36,15 +38,16 @@ export function createObject(input: OwnedObjectInput): OwnedObject {
   const db = getDb()
   const result = db
     .prepare(
-      `INSERT INTO objects (name, description, purchase_date, price, link)
-       VALUES (@name, @description, @purchaseDate, @price, @link)`
+      `INSERT INTO objects (name, description, purchase_date, price, link, purchased)
+       VALUES (@name, @description, @purchaseDate, @price, @link, @purchased)`
     )
     .run({
       name: input.name,
       description: input.description,
       purchaseDate: input.purchaseDate,
       price: input.price,
-      link: input.link
+      link: input.link,
+      purchased: input.purchased ? 1 : 0
     })
 
   return getObjectById(result.lastInsertRowid as number)
@@ -59,6 +62,7 @@ export function updateObject(id: number, input: OwnedObjectInput): OwnedObject {
        purchase_date = @purchaseDate,
        price = @price,
        link = @link,
+       purchased = @purchased,
        updated_at = datetime('now')
      WHERE id = @id`
   ).run({
@@ -67,7 +71,8 @@ export function updateObject(id: number, input: OwnedObjectInput): OwnedObject {
     description: input.description,
     purchaseDate: input.purchaseDate,
     price: input.price,
-    link: input.link
+    link: input.link,
+    purchased: input.purchased ? 1 : 0
   })
 
   return getObjectById(id)

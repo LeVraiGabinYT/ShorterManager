@@ -39,7 +39,7 @@ Standard Electron three-process split, built with `electron-vite` (config: `elec
 
 - `src/main/` — Node process. Owns the SQLite database and all business logic. Never rendered.
 - `src/preload/` — runs in the renderer's context with Node access, bridges main ↔ renderer via
-  `contextBridge`. This is the *only* place `ipcRenderer` is used from the renderer side.
+  `contextBridge`. This is the _only_ place `ipcRenderer` is used from the renderer side.
 - `src/renderer/src/` — the React UI. Has no direct access to Node/Electron APIs except through
   `window.api` (typed) and `window.electron` (from `@electron-toolkit/preload`).
 - `src/shared/types.ts` — the single source of truth for domain types (`VideoIdea`, `OwnedObject`,
@@ -66,6 +66,7 @@ read/written as a set on every idea read/write, not incrementally).
 
 Two tables exist but have no application code yet — they're schema reserved for the planned
 YouTube integration (see `PROGRESS.md`):
+
 - `channel_connection` — OAuth tokens for the connected Google/YouTube channel.
 - `published_videos` — YouTube videos linked back to the `idea` they came from, for performance
   comparison.
@@ -80,10 +81,20 @@ Every DB operation is exposed as an `ipcMain.handle` in `src/main/ipc.ts`
 ### Renderer structure
 
 Feature-folder layout under `src/renderer/src/features/<domain>/`, one tab per domain
-(`ideas`, `objects`, `channel`) rendered by `App.tsx`'s tab switcher (local `useState`, no router).
-Each CRUD feature follows the same shape: a `<Domain>Tab.tsx` that owns the list state and calls
-`window.api` directly (no shared client/store layer — components call IPC and re-fetch after
-mutations), plus a `<Domain>FormModal.tsx` used for both create and edit.
+(`overview`, `ideas`, `objects`, `channel`) rendered by `App.tsx`'s tab switcher (local `useState`,
+no router). Each CRUD feature follows the same shape: a `<Domain>Tab.tsx` that owns the list state
+and calls `window.api` directly (no shared client/store layer — components call IPC and re-fetch
+after mutations), plus a `<Domain>FormModal.tsx` used for both create and edit.
+`src/renderer/src/hooks/useIdeasData.ts` centralizes the ideas+objects fetch/refresh logic shared
+by `IdeasTab` and `OverviewTab` (each still keeps its own copy of the fetched state — this dedupes
+code, not state, since tabs unmount when switched).
+
+An idea's stored `status` is not always what should be displayed or counted: `getEffectiveStatus()`
+in `src/renderer/src/lib/ideaStatus.ts` forces the _effective_ status to `preparation` (plus a
+`missingObjects` flag) whenever any linked object has `purchased: false`, overriding the manual
+status unless it's already `published`. Anything that shows or counts an idea's status —
+`IdeaCard`, `OverviewTab`'s stat cards — must go through this function rather than reading
+`idea.status` directly, or it'll disagree with what the rest of the UI shows.
 
 Styling is Tailwind CSS v4 via the `@tailwindcss/vite` plugin (CSS-first config — there is no
 `tailwind.config.js`; the only setup is `@import 'tailwindcss'` in

@@ -2,6 +2,7 @@ import type { ReactElement } from 'react'
 import type { OwnedObject, VideoIdea } from '@shared/types'
 import { IDEA_STATUSES } from '@shared/types'
 import { formatDate } from '../../lib/format'
+import { getEffectiveStatus } from '../../lib/ideaStatus'
 import { STATUS_STYLES } from './statusStyles'
 
 interface IdeaCardProps {
@@ -11,7 +12,8 @@ interface IdeaCardProps {
 }
 
 export function IdeaCard({ idea, objectsById, onClick }: IdeaCardProps): ReactElement {
-  const statusLabel = IDEA_STATUSES.find((s) => s.value === idea.status)?.label ?? idea.status
+  const { status, missingObjects } = getEffectiveStatus(idea, objectsById)
+  const statusLabel = IDEA_STATUSES.find((s) => s.value === status)?.label ?? status
   const objects = idea.objectIds.map((id) => objectsById.get(id)).filter(Boolean) as OwnedObject[]
 
   return (
@@ -21,11 +23,18 @@ export function IdeaCard({ idea, objectsById, onClick }: IdeaCardProps): ReactEl
     >
       <div className="flex items-start justify-between gap-3">
         <h3 className="font-medium text-gray-100 leading-snug">{idea.title}</h3>
-        <span
-          className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[idea.status]}`}
-        >
-          {statusLabel}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span
+            className={`rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[status]}`}
+          >
+            {statusLabel}
+          </span>
+          {missingObjects && (
+            <span className="rounded-full border border-red-500/40 bg-red-500/20 px-2 py-0.5 text-xs font-medium text-red-300">
+              Objets manquants
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400">
@@ -38,7 +47,11 @@ export function IdeaCard({ idea, objectsById, onClick }: IdeaCardProps): ReactEl
           {objects.map((obj) => (
             <span
               key={obj.id}
-              className="rounded-md bg-white/5 px-2 py-0.5 text-xs text-gray-300 border border-white/10"
+              className={`rounded-md px-2 py-0.5 text-xs border ${
+                obj.purchased
+                  ? 'bg-white/5 text-gray-300 border-white/10'
+                  : 'bg-red-500/10 text-red-300 border-red-500/30'
+              }`}
             >
               {obj.name}
             </span>

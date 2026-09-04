@@ -2,6 +2,7 @@
 
 export const IDEA_STATUSES = [
   { value: 'idea', label: 'Idée' },
+  { value: 'preparation', label: 'Préparation' },
   { value: 'shooting', label: 'Tournage' },
   { value: 'editing', label: 'Montage' },
   { value: 'ready', label: 'Prête' },
@@ -18,6 +19,7 @@ export interface OwnedObject {
   purchaseDate: string | null
   price: number | null
   link: string | null
+  purchased: boolean
   createdAt: string
   updatedAt: string
 }

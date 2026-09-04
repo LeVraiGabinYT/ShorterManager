@@ -20,6 +20,7 @@ export function ObjectFormModal({
   const [purchaseDate, setPurchaseDate] = useState(toDateInputValue(object?.purchaseDate ?? null))
   const [price, setPrice] = useState(object?.price?.toString() ?? '')
   const [link, setLink] = useState(object?.link ?? '')
+  const [purchased, setPurchased] = useState(object?.purchased ?? false)
 
   function handleSubmit(e: FormEvent): void {
     e.preventDefault()
@@ -29,7 +30,8 @@ export function ObjectFormModal({
       description: description.trim() || null,
       purchaseDate: purchaseDate || null,
       price: price.trim() ? Number(price) : null,
-      link: link.trim() || null
+      link: link.trim() || null,
+      purchased
     })
   }
 
@@ -44,6 +46,16 @@ export function ObjectFormModal({
         </h2>
 
         <div className="mt-4 space-y-4">
+          <label className="flex items-center gap-2 text-sm text-gray-200">
+            <input
+              type="checkbox"
+              checked={purchased}
+              onChange={(e) => setPurchased(e.target.checked)}
+              className="h-4 w-4 rounded border-white/20 bg-white/5 accent-blue-600"
+            />
+            Acheté
+          </label>
+
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1">Nom</label>
             <input

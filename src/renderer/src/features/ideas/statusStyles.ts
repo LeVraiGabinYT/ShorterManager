@@ -2,6 +2,7 @@ import type { IdeaStatus } from '@shared/types'
 
 export const STATUS_STYLES: Record<IdeaStatus, string> = {
   idea: 'bg-gray-500/20 text-gray-300 border-gray-500/40',
+  preparation: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
   shooting: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
   editing: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
   ready: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',

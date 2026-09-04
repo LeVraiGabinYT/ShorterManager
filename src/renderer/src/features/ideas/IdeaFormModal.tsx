@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactElement } from 'react'
+import { useMemo, useState, type FormEvent, type ReactElement } from 'react'
 import { IDEA_STATUSES } from '@shared/types'
 import type { OwnedObject, VideoIdea, VideoIdeaInput } from '@shared/types'
 import { toDateInputValue } from '../../lib/format'
@@ -29,6 +29,11 @@ export function IdeaFormModal({
     setObjectIds((prev) => (prev.includes(id) ? prev.filter((o) => o !== id) : [...prev, id]))
   }
 
+  const missingObjects = useMemo(() => {
+    const objectsById = new Map(objects.map((o) => [o.id, o]))
+    return objectIds.some((id) => objectsById.get(id)?.purchased === false)
+  }, [objects, objectIds])
+
   function handleSubmit(e: FormEvent): void {
     e.preventDefault()
     if (!title.trim()) return
@@ -51,6 +56,13 @@ export function IdeaFormModal({
         <h2 className="text-lg font-semibold text-gray-100">
           {idea ? "Modifier l'idée" : 'Nouvelle idée'}
         </h2>
+
+        {missingObjects && status !== 'published' && (
+          <p className="mt-3 rounded-md border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-xs text-orange-300">
+            Objets manquants : cette idée s’affiche comme « Préparation » tant que tous les objets
+            nécessaires ne sont pas marqués comme achetés.
+          </p>
+        )}
 
         <div className="mt-4 space-y-4">
           <div>
@@ -138,11 +150,14 @@ export function IdeaFormModal({
                       onClick={() => toggleObject(obj.id)}
                       className={`rounded-md border px-2 py-1 text-xs transition-colors ${
                         selected
-                          ? 'border-blue-500/60 bg-blue-500/20 text-blue-200'
+                          ? obj.purchased
+                            ? 'border-blue-500/60 bg-blue-500/20 text-blue-200'
+                            : 'border-red-500/50 bg-red-500/20 text-red-300'
                           : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
                       }`}
                     >
                       {obj.name}
+                      {!obj.purchased && ' (non acheté)'}
                     </button>
                   )
                 })}

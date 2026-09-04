@@ -1,30 +1,13 @@
-import { useEffect, useMemo, useState, type ReactElement } from 'react'
-import type { OwnedObject, VideoIdea, VideoIdeaInput } from '@shared/types'
+import { useState, type ReactElement } from 'react'
+import type { VideoIdea, VideoIdeaInput } from '@shared/types'
+import { useIdeasData } from '../../hooks/useIdeasData'
 import { IdeaCard } from './IdeaCard'
 import { IdeaFormModal } from './IdeaFormModal'
 
 export function IdeasTab(): ReactElement {
-  const [ideas, setIdeas] = useState<VideoIdea[]>([])
-  const [objects, setObjects] = useState<OwnedObject[]>([])
-  const [loading, setLoading] = useState(true)
+  const { ideas, objects, objectsById, loading, refresh } = useIdeasData()
   const [editingIdea, setEditingIdea] = useState<VideoIdea | null>(null)
   const [creating, setCreating] = useState(false)
-
-  async function refresh(): Promise<void> {
-    const [ideasList, objectsList] = await Promise.all([
-      window.api.ideas.list(),
-      window.api.objects.list()
-    ])
-    setIdeas(ideasList)
-    setObjects(objectsList)
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    refresh()
-  }, [])
-
-  const objectsById = useMemo(() => new Map(objects.map((o) => [o.id, o])), [objects])
 
   async function handleCreate(input: VideoIdeaInput): Promise<void> {
     await window.api.ideas.create(input)
