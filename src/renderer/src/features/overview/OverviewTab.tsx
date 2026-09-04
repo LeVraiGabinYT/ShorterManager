@@ -57,6 +57,7 @@ function IdeaListSection({
                 onClick={() => onSelect(idea)}
                 className="w-full rounded-md px-2 py-1.5 text-left text-sm text-gray-200 hover:bg-white/5"
               >
+                {idea.emoji && <span className="mr-1.5">{idea.emoji}</span>}
                 {idea.title}
               </button>
             </li>
@@ -68,7 +69,7 @@ function IdeaListSection({
 }
 
 export function OverviewTab(): ReactElement {
-  const { ideas, objects, objectsById, loading, refresh } = useIdeasData()
+  const { ideas, objects, objectsById, tags, loading, refresh } = useIdeasData()
   const [selectedIdea, setSelectedIdea] = useState<VideoIdea | null>(null)
 
   const effective = useMemo(
@@ -142,9 +143,11 @@ export function OverviewTab(): ReactElement {
         <IdeaFormModal
           idea={selectedIdea}
           objects={objects}
+          tags={tags}
           onClose={() => setSelectedIdea(null)}
           onSave={handleUpdate}
           onDelete={handleDelete}
+          onTagsChanged={refresh}
         />
       )}
     </div>

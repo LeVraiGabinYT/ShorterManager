@@ -18,6 +18,22 @@ pipeline end-to-end:
 The app is meant to grow in complexity over time — the data model and IPC layer should stay easy
 to extend rather than being treated as finished.
 
+## Status: v2 — Tags, emoji, filters (done)
+
+- **Tags**: a global `tags` table (name + color from a fixed preset palette), managed inline
+  wherever they're picked (`src/renderer/src/features/tags/TagPicker.tsx` — chip toggles + a
+  "+ Nouveau tag" inline mini-form, no separate tags-management screen). Linked to ideas via
+  `idea_tags`; a `published_video_tags` join table also exists already, reserved for tagging
+  fetched YouTube videos directly in the upcoming Channel milestone.
+- **Emoji per idea**: a plain text `emoji` column on `ideas`, edited via a small text input in
+  `IdeaFormModal` (relies on the OS-level emoji picker shortcut — no in-app picker library) and
+  rendered as a prefix everywhere an idea's title appears (`IdeaCard`, `OverviewTab` lists).
+- **Idea filters** (`IdeasTab`, via `IdeaFilters.tsx` + the pure `filterIdeas()` in
+  `src/renderer/src/lib/ideaFilters.ts`): keyword (title+description substring), status (multi,
+  effective status), tags (multi, with an "au moins un" / "tous" toggle), objects (multi, "at least
+  one" semantics), and shoot/publish date each independently as either "any", an exact date, or a
+  from/to range. All client-side over the already-fetched ideas list — no new IPC needed.
+
 ## Status: v1 — Ideas + Objects CRUD + Overview (done)
 
 - Electron + React + TypeScript scaffold via `electron-vite`, Tailwind v4, `better-sqlite3` for
@@ -52,27 +68,48 @@ scheduled → published`), shoot date, publish date, and a multi-select of neede
   migrates cleanly (`ALTER TABLE ... ADD COLUMN` guarded by `ensureColumn()` in
   `src/main/db/index.ts`), all four tabs render, typecheck/lint/build all pass clean.
 
-## Next up (not started)
+## Next up (not started) — currently being scoped/built with the user, in this order
 
-Roughly in the order the user described the feature, no firm priority beyond that:
-
-1. **Google OAuth + YouTube Data API connection** (Chaîne YouTube tab)
-   - OAuth flow inside Electron (likely a `BrowserWindow`-based flow or system browser +
-     loopback, since Electron apps can't easily use `ASWebAuthenticationSession`-style flows —
-     needs a design decision when picked up).
-   - Store tokens in `channel_connection` (already in schema); handle refresh.
-   - Fetch the connected channel's uploaded videos.
-2. **Link ideas to published videos** — UI to attach a `published_videos` row to an `idea` (manual
-   at first; auto-matching by title/date similarity could come later).
-3. **Performance comparison** — once videos are linked, surface view/like/comment stats next to
-   similar ideas (status/objects overlap) so the user can see what worked.
-4. Likely needed along the way but not yet designed: idea search/filtering as the list grows,
-   sorting options (currently newest-created-first only), and an "objects" section on the Overview
-   tab (e.g. count of not-yet-purchased objects blocking ideas).
+1. **Google OAuth connection to the YouTube channel** (Chaîne YouTube tab) — "connect once" is a
+   hard requirement.
+   - Loopback-redirect flow: main process spins up a temporary local HTTP server on
+     `127.0.0.1:<random port>`, opens the system browser to Google's consent screen
+     (`shell.openExternal`, not a BrowserWindow — Google blocks OAuth in embedded webviews), Google
+     redirects back to the loopback server with the auth code, exchanged server-side for
+     access+refresh tokens.
+   - Needs an OAuth Client ID of type **Desktop app** from Google Cloud Console (the user must
+     create this — being walked through it live). Store the downloaded `client_secret_*.json`
+     locally as `credentials/google-oauth.json` (gitignored), read only by the main process.
+   - Scopes: `youtube.readonly` (channel + uploaded videos + comments — all via YouTube Data API
+     v3) and `yt-analytics.readonly` (YouTube Analytics API — needed specifically for
+     `averageViewPercentage`/retention, which the Data API does not expose).
+   - For the refresh token to not expire after 7 days, the OAuth consent screen's publishing status
+     must be **"In production"** (not "Testing") — the user will see an "unverified app" warning
+     during consent (expected and fine for a personal-use app; verification is not required unless
+     Google flags the scopes as "Restricted", which these are not).
+   - Store tokens in `channel_connection` (id=1 singleton row, already in schema); refresh
+     silently via the token endpoint whenever the access token is expired, before any API call.
+   - `ChannelStatus` (connected/channelId/channelTitle — no tokens) is the only thing ever exposed
+     to the renderer; tokens stay main-process-only.
+2. **Fetch the channel's recent videos** into the Channel tab: title, thumbnail, view/like/comment
+   counts (Data API `videos.list`), and average view percentage (Analytics API `reports.query`).
+   Cache into `published_videos` (upsert by `youtube_video_id`); `PublishedVideo`/`ChannelStatus`
+   types already exist in `src/shared/types.ts` for this.
+3. **Tag a fetched video** directly from the Channel tab's video list, using the same `tags` table
+   as ideas (`published_video_tags` join table already in schema).
+4. **Analyse tab** (new): pick a tag, list every `published_video` carrying it with its stats,
+   compute average/best/worst view count, and surface which other tags co-occur on those same
+   videos. Comments are fetched live on demand (Data API `commentThreads.list`) rather than
+   persisted — no comments table planned, to avoid unbounded local storage growth.
+5. Not yet designed, flagged by the user as wanted eventually: linking a specific idea to the
+   published video it became (manual at first), and comparing an idea's "predicted" tags against
+   how similar-tagged videos actually performed.
 
 ## Open decisions for whoever picks this up
 
-- No decision made yet on the OAuth flow's UX inside Electron — flag this to the user before
-  implementing, since it affects whether we need a custom protocol handler registered.
+- OAuth flow is decided (loopback HTTP server + system browser, see above) — the only remaining
+  blocker is the user completing the Google Cloud Console setup (project, enabled APIs, consent
+  screen, Desktop app credentials) and saving the downloaded JSON to
+  `credentials/google-oauth.json`. Once that file exists, wire up `src/main/youtube/oauth.ts`.
 - No versioned migration system for the DB yet (just `CREATE TABLE IF NOT EXISTS`) — fine while
   the schema only grows, but altering/dropping columns later will need a real migration path.

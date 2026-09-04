@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { OwnedObjectInput, ShorterManagerApi, VideoIdeaInput } from '../shared/types'
+import type { OwnedObjectInput, ShorterManagerApi, TagInput, VideoIdeaInput } from '../shared/types'
 
 const api: ShorterManagerApi = {
   ideas: {
@@ -15,6 +15,12 @@ const api: ShorterManagerApi = {
     update: (id: number, input: OwnedObjectInput) =>
       ipcRenderer.invoke('objects:update', id, input),
     remove: (id: number) => ipcRenderer.invoke('objects:remove', id)
+  },
+  tags: {
+    list: () => ipcRenderer.invoke('tags:list'),
+    create: (input: TagInput) => ipcRenderer.invoke('tags:create', input),
+    update: (id: number, input: TagInput) => ipcRenderer.invoke('tags:update', id, input),
+    remove: (id: number) => ipcRenderer.invoke('tags:remove', id)
   }
 }
 

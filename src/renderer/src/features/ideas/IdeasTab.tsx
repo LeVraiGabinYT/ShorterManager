@@ -1,13 +1,21 @@
-import { useState, type ReactElement } from 'react'
+import { useMemo, useState, type ReactElement } from 'react'
 import type { VideoIdea, VideoIdeaInput } from '@shared/types'
 import { useIdeasData } from '../../hooks/useIdeasData'
+import { DEFAULT_IDEA_FILTERS, filterIdeas, type IdeaFiltersState } from '../../lib/ideaFilters'
 import { IdeaCard } from './IdeaCard'
+import { IdeaFilters } from './IdeaFilters'
 import { IdeaFormModal } from './IdeaFormModal'
 
 export function IdeasTab(): ReactElement {
-  const { ideas, objects, objectsById, loading, refresh } = useIdeasData()
+  const { ideas, objects, objectsById, tags, tagsById, loading, refresh } = useIdeasData()
   const [editingIdea, setEditingIdea] = useState<VideoIdea | null>(null)
   const [creating, setCreating] = useState(false)
+  const [filters, setFilters] = useState<IdeaFiltersState>(DEFAULT_IDEA_FILTERS)
+
+  const filteredIdeas = useMemo(
+    () => filterIdeas(ideas, filters, objectsById),
+    [ideas, filters, objectsById]
+  )
 
   async function handleCreate(input: VideoIdeaInput): Promise<void> {
     await window.api.ideas.create(input)
@@ -41,6 +49,10 @@ export function IdeasTab(): ReactElement {
         </button>
       </div>
 
+      <div className="px-6 pb-4">
+        <IdeaFilters filters={filters} onChange={setFilters} tags={tags} objects={objects} />
+      </div>
+
       <div className="flex-1 overflow-y-auto px-6 pb-6">
         {loading ? (
           <p className="text-sm text-gray-500">Chargement...</p>
@@ -48,13 +60,16 @@ export function IdeasTab(): ReactElement {
           <p className="text-sm text-gray-500">
             Aucune idée pour l’instant. Clique sur « Nouvelle idée » pour commencer.
           </p>
+        ) : filteredIdeas.length === 0 ? (
+          <p className="text-sm text-gray-500">Aucune idée ne correspond à ces filtres.</p>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {ideas.map((idea) => (
+            {filteredIdeas.map((idea) => (
               <IdeaCard
                 key={idea.id}
                 idea={idea}
                 objectsById={objectsById}
+                tagsById={tagsById}
                 onClick={() => setEditingIdea(idea)}
               />
             ))}
@@ -66,8 +81,10 @@ export function IdeasTab(): ReactElement {
         <IdeaFormModal
           idea={null}
           objects={objects}
+          tags={tags}
           onClose={() => setCreating(false)}
           onSave={handleCreate}
+          onTagsChanged={refresh}
         />
       )}
 
@@ -75,9 +92,11 @@ export function IdeasTab(): ReactElement {
         <IdeaFormModal
           idea={editingIdea}
           objects={objects}
+          tags={tags}
           onClose={() => setEditingIdea(null)}
           onSave={handleUpdate}
           onDelete={handleDelete}
+          onTagsChanged={refresh}
         />
       )}
     </div>

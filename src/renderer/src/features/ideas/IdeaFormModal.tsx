@@ -1,29 +1,36 @@
 import { useMemo, useState, type FormEvent, type ReactElement } from 'react'
 import { IDEA_STATUSES } from '@shared/types'
-import type { OwnedObject, VideoIdea, VideoIdeaInput } from '@shared/types'
+import type { OwnedObject, Tag, VideoIdea, VideoIdeaInput } from '@shared/types'
 import { toDateInputValue } from '../../lib/format'
+import { TagPicker } from '../tags/TagPicker'
 
 interface IdeaFormModalProps {
   idea: VideoIdea | null
   objects: OwnedObject[]
+  tags: Tag[]
   onClose: () => void
   onSave: (input: VideoIdeaInput) => void
   onDelete?: () => void
+  onTagsChanged: () => void
 }
 
 export function IdeaFormModal({
   idea,
   objects,
+  tags,
   onClose,
   onSave,
-  onDelete
+  onDelete,
+  onTagsChanged
 }: IdeaFormModalProps): ReactElement {
   const [title, setTitle] = useState(idea?.title ?? '')
+  const [emoji, setEmoji] = useState(idea?.emoji ?? '')
   const [description, setDescription] = useState(idea?.description ?? '')
   const [status, setStatus] = useState<VideoIdeaInput['status']>(idea?.status ?? 'idea')
   const [publishDate, setPublishDate] = useState(toDateInputValue(idea?.publishDate ?? null))
   const [shootDate, setShootDate] = useState(toDateInputValue(idea?.shootDate ?? null))
   const [objectIds, setObjectIds] = useState<number[]>(idea?.objectIds ?? [])
+  const [tagIds, setTagIds] = useState<number[]>(idea?.tagIds ?? [])
 
   function toggleObject(id: number): void {
     setObjectIds((prev) => (prev.includes(id) ? prev.filter((o) => o !== id) : [...prev, id]))
@@ -39,11 +46,13 @@ export function IdeaFormModal({
     if (!title.trim()) return
     onSave({
       title: title.trim(),
+      emoji: emoji.trim() || null,
       description: description.trim() || null,
       status,
       publishDate: publishDate || null,
       shootDate: shootDate || null,
-      objectIds
+      objectIds,
+      tagIds
     })
   }
 
@@ -65,16 +74,27 @@ export function IdeaFormModal({
         )}
 
         <div className="mt-4 space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">Titre</label>
-            <input
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500/60"
-              placeholder="Titre de la vidéo"
-            />
+          <div className="flex gap-2">
+            <div className="w-16 shrink-0">
+              <label className="block text-xs font-medium text-gray-400 mb-1">Émoji</label>
+              <input
+                value={emoji}
+                onChange={(e) => setEmoji(e.target.value)}
+                placeholder="🎬"
+                className="w-full rounded-md border border-white/10 bg-white/5 px-2 py-2 text-center text-lg outline-none focus:border-blue-500/60"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-400 mb-1">Titre</label>
+              <input
+                autoFocus
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+                className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500/60"
+                placeholder="Titre de la vidéo"
+              />
+            </div>
           </div>
 
           <div>
@@ -129,6 +149,16 @@ export function IdeaFormModal({
                 className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500/60 [color-scheme:dark]"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1">Tags</label>
+            <TagPicker
+              tags={tags}
+              selectedIds={tagIds}
+              onChange={setTagIds}
+              onTagsChanged={onTagsChanged}
+            />
           </div>
 
           <div>

@@ -64,12 +64,18 @@ row ↔ camelCase mapping internally (SQL columns are snake_case).
 `ideas` and `objects` are linked many-to-many through `idea_objects` (an idea's `objectIds` are
 read/written as a set on every idea read/write, not incrementally).
 
-Two tables exist but have no application code yet — they're schema reserved for the planned
-YouTube integration (see `PROGRESS.md`):
+`tags` (name + color) attach to both `ideas` (via `idea_tags`) and, once built, fetched YouTube
+videos (via `published_video_tags`) — the same tag vocabulary is meant to connect ideas to real
+channel performance later.
 
-- `channel_connection` — OAuth tokens for the connected Google/YouTube channel.
-- `published_videos` — YouTube videos linked back to the `idea` they came from, for performance
-  comparison.
+Tables that exist but have no application code yet — reserved for the YouTube integration
+currently being built (see `PROGRESS.md` for the exact plan and where it stands):
+
+- `channel_connection` — OAuth tokens for the connected Google/YouTube channel (singleton row,
+  `id = 1`). Never expose its contents to the renderer directly — only a derived `ChannelStatus`
+  (connected/channelId/channelTitle).
+- `published_videos` / `published_video_tags` — YouTube videos (optionally linked back to the
+  `idea` they came from) with cached stats, for performance comparison by tag.
 
 ### IPC
 
@@ -99,3 +105,29 @@ status unless it's already `published`. Anything that shows or counts an idea's 
 Styling is Tailwind CSS v4 via the `@tailwindcss/vite` plugin (CSS-first config — there is no
 `tailwind.config.js`; the only setup is `@import 'tailwindcss'` in
 `src/renderer/src/assets/main.css`). The UI is dark-only (no light theme / no theme toggle).
+
+Tags have no dedicated management screen — they're created inline wherever they're picked, via
+`TagPicker` (`src/renderer/src/features/tags/TagPicker.tsx`), which both toggles selection and
+offers a "+ Nouveau tag" mini-form (name + a swatch from `TAG_COLOR_PRESETS`). Any screen that
+lets a user create a tag through this component must pass an `onTagsChanged` callback that
+re-fetches the tag list (there's no shared tags store either).
+
+Idea filtering (`IdeasTab`) is entirely client-side and stateless server-side: `IdeaFilters.tsx`
+owns the filter UI, `src/renderer/src/lib/ideaFilters.ts`'s `filterIdeas()` is the pure function
+applied to the already-fetched ideas array. If a new filter dimension is added, extend
+`IdeaFiltersState`/`DEFAULT_IDEA_FILTERS` and `filterIdeas()` together — there's no IPC-side
+filtering to keep in sync.
+
+### YouTube integration (in progress)
+
+Being built per the plan in `PROGRESS.md`. Key constraint driving the design: OAuth must happen
+only once — the refresh token is stored in `channel_connection` and silently refreshed, never
+requiring interactive login again (as long as the Google Cloud OAuth consent screen is in
+"Production" status, not "Testing"). The loopback-redirect flow (temporary local HTTP server +
+`shell.openExternal`, not a `BrowserWindow`) is the only viable interactive-login mechanism for an
+Electron desktop app — Google blocks OAuth consent inside embedded webviews. OAuth client
+credentials live in a local, gitignored `credentials/google-oauth.json` (Google's own downloadable
+format), read only by the main process; the renderer only ever sees a `ChannelStatus`, never
+tokens. Two separate Google APIs are involved: YouTube Data API v3 (videos, stats, comments) and
+YouTube Analytics API (`averageViewPercentage`/retention specifically — not available from the
+Data API).

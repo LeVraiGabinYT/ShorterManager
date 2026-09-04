@@ -59,6 +59,25 @@ function migrate(database: Database.Database): void {
       PRIMARY KEY (idea_id, object_id)
     );
 
+    CREATE TABLE IF NOT EXISTS tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      color TEXT NOT NULL DEFAULT '#3b82f6',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS idea_tags (
+      idea_id INTEGER NOT NULL REFERENCES ideas(id) ON DELETE CASCADE,
+      tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+      PRIMARY KEY (idea_id, tag_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS published_video_tags (
+      published_video_id INTEGER NOT NULL REFERENCES published_videos(id) ON DELETE CASCADE,
+      tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+      PRIMARY KEY (published_video_id, tag_id)
+    );
+
     -- Réservé pour la future intégration OAuth Google / YouTube Data API.
     CREATE TABLE IF NOT EXISTS channel_connection (
       id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -85,4 +104,5 @@ function migrate(database: Database.Database): void {
   `)
 
   ensureColumn(database, 'objects', 'purchased', 'INTEGER NOT NULL DEFAULT 0')
+  ensureColumn(database, 'ideas', 'emoji', 'TEXT')
 }

@@ -12,6 +12,28 @@ export const IDEA_STATUSES = [
 
 export type IdeaStatus = (typeof IDEA_STATUSES)[number]['value']
 
+export const TAG_COLOR_PRESETS = [
+  '#ef4444',
+  '#f97316',
+  '#f59e0b',
+  '#84cc16',
+  '#10b981',
+  '#06b6d4',
+  '#3b82f6',
+  '#8b5cf6',
+  '#d946ef',
+  '#ec4899'
+] as const
+
+export interface Tag {
+  id: number
+  name: string
+  color: string
+  createdAt: string
+}
+
+export type TagInput = Omit<Tag, 'id' | 'createdAt'>
+
 export interface OwnedObject {
   id: number
   name: string
@@ -30,16 +52,43 @@ export interface VideoIdea {
   id: number
   title: string
   description: string | null
+  emoji: string | null
   status: IdeaStatus
   publishDate: string | null
   shootDate: string | null
   createdAt: string
   updatedAt: string
   objectIds: number[]
+  tagIds: number[]
 }
 
-export type VideoIdeaInput = Omit<VideoIdea, 'id' | 'createdAt' | 'updatedAt' | 'objectIds'> & {
+export type VideoIdeaInput = Omit<
+  VideoIdea,
+  'id' | 'createdAt' | 'updatedAt' | 'objectIds' | 'tagIds'
+> & {
   objectIds: number[]
+  tagIds: number[]
+}
+
+export interface PublishedVideo {
+  id: number
+  ideaId: number | null
+  youtubeVideoId: string
+  title: string | null
+  thumbnailUrl: string | null
+  publishedAt: string | null
+  viewCount: number | null
+  likeCount: number | null
+  commentCount: number | null
+  averageViewPercentage: number | null
+  statsFetchedAt: string | null
+  tagIds: number[]
+}
+
+export interface ChannelStatus {
+  connected: boolean
+  channelId: string | null
+  channelTitle: string | null
 }
 
 export interface ShorterManagerApi {
@@ -53,6 +102,12 @@ export interface ShorterManagerApi {
     list: () => Promise<OwnedObject[]>
     create: (input: OwnedObjectInput) => Promise<OwnedObject>
     update: (id: number, input: OwnedObjectInput) => Promise<OwnedObject>
+    remove: (id: number) => Promise<void>
+  }
+  tags: {
+    list: () => Promise<Tag[]>
+    create: (input: TagInput) => Promise<Tag>
+    update: (id: number, input: TagInput) => Promise<Tag>
     remove: (id: number) => Promise<void>
   }
 }
