@@ -1,4 +1,12 @@
 import { ipcMain } from 'electron'
+import {
+  addVideosToGroup,
+  createGroup,
+  listGroups,
+  removeGroup,
+  removeVideoFromGroup,
+  renameGroup
+} from './db/analysisGroups'
 import { getChannelStatus } from './db/channel'
 import { createIdea, listIdeas, removeIdea, updateIdea } from './db/ideas'
 import { createObject, listObjects, removeObject, updateObject } from './db/objects'
@@ -68,4 +76,17 @@ export function registerIpcHandlers(): void {
       return { videos: [], error: error instanceof Error ? error.message : String(error) }
     }
   })
+
+  ipcMain.handle('analysisGroups:list', () => listGroups())
+  ipcMain.handle('analysisGroups:create', (_event, name: string) => createGroup(name))
+  ipcMain.handle('analysisGroups:rename', (_event, id: number, name: string) =>
+    renameGroup(id, name)
+  )
+  ipcMain.handle('analysisGroups:remove', (_event, id: number) => removeGroup(id))
+  ipcMain.handle('analysisGroups:addVideos', (_event, id: number, youtubeVideoIds: string[]) =>
+    addVideosToGroup(id, youtubeVideoIds)
+  )
+  ipcMain.handle('analysisGroups:removeVideo', (_event, id: number, youtubeVideoId: string) =>
+    removeVideoFromGroup(id, youtubeVideoId)
+  )
 }

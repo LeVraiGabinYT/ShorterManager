@@ -133,18 +133,60 @@ them either.
   Because matches get cached on search, they immediately become linkable everywhere (the
   `IdeaFormModal` video picker included) without any extra plumbing.
 
+## Status: v4 — Analyse tab: Explorer, Groups, Timeline, bulk actions (done)
+
+The last piece of the originally-scoped plan. Three sub-tabs under a new "Analyse" tab
+(`src/renderer/src/features/analysis/AnalysisTab.tsx`), all reading from `useIdeasData()`'s
+`publishedVideos`/`ideas`/`tags`/`objects` — no dedicated backend query layer beyond the new
+`analysis_groups` tables, everything else is computed client-side over already-fetched data.
+
+- **Explorer** (`ExplorerPanel.tsx`): combinable filters (tags with an any/all toggle, objects,
+  title keyword) over `published_videos`, via `filterPublishedVideos()` +
+  `getVideoObjectIds()` in `src/renderer/src/lib/analysisFilters.ts` (a video's "objects" are its
+  linked idea's objects — a video has none of its own). Results show a live `StatsSummary`
+  (`computeVideoStats()` in `src/renderer/src/lib/videoStats.ts`: avg views/likes/comments/
+  retention + best/worst, always excluding videos with a null `viewCount`) for the whole filtered
+  set, plus a checkbox per video (and a "tout sélectionner") to build a custom subset and add it to
+  a named group via `AddToGroupControl.tsx`.
+- **Groups** (`GroupsPanel.tsx`): named, manually-curated video sets
+  (`analysis_groups`/`analysis_group_videos` tables, `src/main/db/analysisGroups.ts`), rename
+  inline, remove individual videos, check 2+ to compare their `StatsSummary`s side by side.
+- **Timeline** (`TimelinePanel.tsx`): pick one tag, see every matching `published_video` (by real
+  `publishedAt`) and every matching not-yet-linked idea (by `publishDate ?? shootDate`, "en
+  préparation") in one chronological list, plus a stacked monthly bar chart (blue `#3987e5`
+  published / orange `#d95926` in-préparation — the dataviz skill's validated adjacent categorical
+  pair) to visually spot an overused topic. The chart and list share the same computed `entries`;
+  the list is the required non-chart/accessible view of the same data.
+- **Bulk actions**, added after first real usage exposed the gap:
+  - Idées tab: every `IdeaCard` now has a selection checkbox (`selected`/`onToggleSelect` props;
+    the card's wrapper became a `<div onClick>` instead of a `<button>` so the checkbox can
+    `stopPropagation`), a "tout sélectionner" toggle for the currently filtered set, and a
+    `BulkActionsBar.tsx` that can add a tag, add an object, or set a status across the whole
+    selection at once (`toIdeaInput()` in `IdeasTab.tsx` rebuilds the full `VideoIdeaInput` each
+    update requires — there's no partial-patch endpoint).
+  - Channel tab: the video list (cached or search results) gained the same
+    checkbox/"tout sélectionner" pattern plus `AddToGroupControl` (extracted out of `ExplorerPanel`
+    into its own file specifically so both places could use it), so a multi-video search result can
+    go straight into a group without visiting Explorer.
+- **Duplicate-idea detection** (`DuplicateIdeaModal.tsx`, wired into `ChannelTab.handleAddToList`):
+  before creating a new idea from a real video, checks for an existing idea whose trimmed title
+  matches the video's exactly. If found, shows both side by side (date + tags) and offers "Fusionner
+  et lier" (link to the existing idea instead of duplicating it) or "Créer quand même". The merge's
+  tag-combining logic isn't special-cased in the renderer — it was pushed down into
+  `linkVideoToIdea()` (`src/main/youtube/videos.ts`) as a general rule: **linking any video to any
+  idea now always unions the video's own pre-link tags into the idea's**, so a previously
+  independently-tagged unlinked video never silently loses its tags on link, duplicate-merge or not.
+- **`PublishedVideo.description`** added (fetched from the Data API's `snippet.description`,
+  already requested via the existing `part=snippet` on both the recent-videos and search calls —
+  no extra quota cost) so Explorer's keyword filter can match description text the same way idea
+  filtering already does for `idea.description`.
+
 ## Next up (not started)
 
-1. **Analyse tab** (new, last piece of the originally-scoped plan): pick a tag, list every
-   `published_video` carrying it with its stats, compute average/best/worst view count (filtering
-   out `NOT_POSTED_STAT` / unlinked-idea entries — see the v3 note above, this is the main
-   correctness trap for this feature), and surface which other tags co-occur on those same videos.
-   Comments were explicitly scoped to be fetched live on demand (Data API `commentThreads.list`)
-   rather than persisted, to avoid unbounded local storage growth — no comments table planned.
-2. Not yet designed, flagged by the user as wanted eventually: comparing an idea's tags against how
-   similar-tagged videos actually performed (i.e. using the Analyse tab's per-tag stats to inform
-   an idea still in the `idea`/`preparation` stage) — likely surfaces in `IdeaFormModal` once the
-   Analyse tab's aggregation logic exists to reuse.
+Not yet designed, flagged by the user as wanted eventually: comparing an idea's tags against how
+similar-tagged videos actually performed (i.e. using the Analyse tab's per-tag stats to inform an
+idea still in the `idea`/`preparation` stage) — likely surfaces in `IdeaFormModal` once there's a
+reason to reuse the Analyse tab's aggregation logic from outside it.
 
 ## Open decisions for whoever picks this up
 

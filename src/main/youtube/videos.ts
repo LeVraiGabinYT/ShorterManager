@@ -1,4 +1,4 @@
-import { getIdeaById, markIdeaPublished, createIdea } from '../db/ideas'
+import { getIdeaById, markIdeaPublished, createIdea, updateIdea } from '../db/ideas'
 import {
   getPublishedVideoIdByYoutubeId,
   linkVideoToIdea as dbLinkVideoToIdea,
@@ -25,6 +25,7 @@ interface PlaylistItem {
   contentDetails: { videoId: string; videoPublishedAt?: string }
   snippet: {
     title: string
+    description?: string
     publishedAt: string
     thumbnails?: { medium?: { url: string }; default?: { url: string } }
   }
@@ -93,6 +94,7 @@ async function getAverageViewPercentages(videoIds: string[]): Promise<Map<string
 interface VideoMeta {
   videoId: string
   title: string
+  description: string | null
   thumbnailUrl: string | null
   publishedAt: string
 }
@@ -109,6 +111,7 @@ async function upsertVideoMetas(metas: VideoMeta[]): Promise<void> {
     upsertPublishedVideo({
       youtubeVideoId: meta.videoId,
       title: meta.title,
+      description: meta.description,
       thumbnailUrl: meta.thumbnailUrl,
       publishedAt: meta.publishedAt,
       viewCount: videoStats?.viewCount ?? null,
@@ -127,6 +130,7 @@ export async function refreshRecentVideos(): Promise<PublishedVideo[]> {
     items.map((item) => ({
       videoId: item.contentDetails.videoId,
       title: item.snippet.title,
+      description: item.snippet.description ?? null,
       thumbnailUrl:
         item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url ?? null,
       publishedAt: item.contentDetails.videoPublishedAt ?? item.snippet.publishedAt
@@ -140,6 +144,7 @@ interface SearchResultItem {
   id: { videoId: string }
   snippet: {
     title: string
+    description?: string
     publishedAt: string
     thumbnails?: { medium?: { url: string }; default?: { url: string } }
   }
@@ -164,6 +169,7 @@ export async function searchChannelVideos(query: string): Promise<PublishedVideo
     items.map((item) => ({
       videoId: item.id.videoId,
       title: item.snippet.title,
+      description: item.snippet.description ?? null,
       thumbnailUrl:
         item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url ?? null,
       publishedAt: item.snippet.publishedAt
@@ -195,6 +201,18 @@ export function createIdeaFromVideo(youtubeVideoId: string): VideoIdea {
 
 export function linkVideoToIdea(youtubeVideoId: string, ideaId: number): void {
   const video = listPublishedVideos().find((v) => v.youtubeVideoId === youtubeVideoId)
+
+  // A video's own (pre-link) tags would otherwise become invisible once idea_tags takes over as
+  // the source of truth for a linked video's tags — merge them into the idea first so nothing
+  // is silently lost.
+  if (video && video.tagIds.length > 0) {
+    const idea = getIdeaById(ideaId)
+    const mergedTagIds = Array.from(new Set([...idea.tagIds, ...video.tagIds]))
+    if (mergedTagIds.length !== idea.tagIds.length) {
+      updateIdea(ideaId, { ...idea, tagIds: mergedTagIds })
+    }
+  }
+
   dbLinkVideoToIdea(youtubeVideoId, ideaId)
   markIdeaPublished(ideaId, video?.publishedAt ? video.publishedAt.slice(0, 10) : null)
 }

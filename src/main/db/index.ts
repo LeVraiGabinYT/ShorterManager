@@ -103,10 +103,24 @@ function migrate(database: Database.Database): void {
       average_view_percentage REAL,
       stats_fetched_at TEXT
     );
+
+    -- Groupes de vidéos publiées, curés manuellement, pour comparaison dans l'onglet Analyse.
+    CREATE TABLE IF NOT EXISTS analysis_groups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS analysis_group_videos (
+      group_id INTEGER NOT NULL REFERENCES analysis_groups(id) ON DELETE CASCADE,
+      published_video_id INTEGER NOT NULL REFERENCES published_videos(id) ON DELETE CASCADE,
+      PRIMARY KEY (group_id, published_video_id)
+    );
   `)
 
   ensureColumn(database, 'objects', 'purchased', 'INTEGER NOT NULL DEFAULT 0')
   ensureColumn(database, 'ideas', 'emoji', 'TEXT')
   ensureColumn(database, 'published_videos', 'thumbnail_url', 'TEXT')
   ensureColumn(database, 'published_videos', 'average_view_percentage', 'REAL')
+  ensureColumn(database, 'published_videos', 'description', 'TEXT')
 }

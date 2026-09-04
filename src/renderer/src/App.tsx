@@ -3,12 +3,14 @@ import { OverviewTab } from './features/overview/OverviewTab'
 import { IdeasTab } from './features/ideas/IdeasTab'
 import { ObjectsTab } from './features/objects/ObjectsTab'
 import { ChannelTab } from './features/channel/ChannelTab'
+import { AnalysisTab } from './features/analysis/AnalysisTab'
 
 const TABS = [
   { id: 'overview', label: 'Vue d’ensemble' },
   { id: 'ideas', label: 'Idées' },
   { id: 'objects', label: 'Objets achetés' },
-  { id: 'channel', label: 'Chaîne YouTube' }
+  { id: 'channel', label: 'Chaîne YouTube' },
+  { id: 'analysis', label: 'Analyse' }
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -39,6 +41,7 @@ function App(): ReactElement {
         {activeTab === 'ideas' && <IdeasTab />}
         {activeTab === 'objects' && <ObjectsTab />}
         {activeTab === 'channel' && <ChannelTab />}
+        {activeTab === 'analysis' && <AnalysisTab />}
       </main>
     </div>
   )

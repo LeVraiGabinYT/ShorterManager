@@ -72,9 +72,12 @@ read/written as a set on every idea read/write, not incrementally).
   `id = 1`). Never expose its contents to the renderer directly — only a derived `ChannelStatus`
   (connected/channelId/channelTitle), produced by `getChannelStatus()` in `src/main/db/channel.ts`.
 - `published_videos` — YouTube videos fetched from the channel, optionally linked back to the
-  `idea` they came from via `idea_id` (nullable FK), with cached view/like/comment counts and
-  `average_view_percentage`. Upserted by `youtube_video_id`, never duplicated. Not yet consumed by
-  any analysis/aggregation feature (that's the planned Analyse tab — see `PROGRESS.md`).
+  `idea` they came from via `idea_id` (nullable FK), with cached view/like/comment counts,
+  `average_view_percentage`, and `description` (used for keyword search, never shown in the UI).
+  Upserted by `youtube_video_id`, never duplicated.
+- `analysis_groups` / `analysis_group_videos` — named, manually-curated sets of `published_videos`
+  for the Analyse tab's group comparison. A group has no filter/query attached to it — it's a fixed
+  list of video IDs, built once (typically from an Explorer selection) and edited by hand after.
 
 ### IPC
 
@@ -165,8 +168,42 @@ cached.
 Editing them only happens through the idea (`IdeaFormModal`'s `TagPicker`), not the video. An
 unlinked video keeps independently-assigned tags in `published_video_tags`, editable directly from
 `ChannelVideoDetailModal`. This split (see `toPublishedVideo()` in
-`src/main/db/publishedVideos.ts`) is what lets the future Analyse tab tag historical videos that
-have no corresponding local idea, while linked videos never drift out of sync with their idea.
+`src/main/db/publishedVideos.ts`) lets the Analyse tab tag historical videos that have no
+corresponding local idea, while linked videos never drift out of sync with their idea.
+`linkVideoToIdea()` (`src/main/youtube/videos.ts`) merges a video's pre-link direct tags into the
+target idea's tags before switching over — link always preserves tags, never silently drops them.
+
+### Analyse tab
+
+Three sub-views under `src/renderer/src/features/analysis/AnalysisTab.tsx`
+(Explorer/Groups/Timeline), all pure client-side computation over `useIdeasData()`'s already-fetched
+`publishedVideos`/`ideas`/`tags`/`objects` — the only new backend surface is `analysis_groups`
+(`src/main/db/analysisGroups.ts`). `computeVideoStats()`
+(`src/renderer/src/lib/videoStats.ts`) is the one place that averages view/like/comment/retention
+counts; it always filters out any video with a `null viewCount` first — every consumer (Explorer's
+live filter results, a group, a group comparison) must go through it rather than averaging raw
+arrays inline, or a fetch-failed video will corrupt the numbers. `filterPublishedVideos()`
+(`src/renderer/src/lib/analysisFilters.ts`) is the Explorer-side counterpart to `filterIdeas()` —
+same tag any/all + object + keyword shape, but over `PublishedVideo[]`; `getVideoObjectIds()` in
+the same file is the only way a video's objects are known (through its linked idea, if any).
+
+`AddToGroupControl.tsx` is shared between `ExplorerPanel` and `ChannelTab` (bulk-select in the
+Channel tab's video list can add straight to a group without going through Explorer) —
+`useAnalysisGroups()` is the matching shared fetch hook, mirroring `useIdeasData()`'s pattern.
+
+Bulk selection exists in two places with the same shape (a checkbox per row, a "tout sélectionner"
+for whatever's currently displayed) but different actions: `IdeasTab` pairs it with
+`BulkActionsBar.tsx` (add a tag/object or set a status across the selection — each call rebuilds a
+full `VideoIdeaInput` via `toIdeaInput()`, since `ideas:update` has no partial-patch mode);
+`ChannelTab` pairs it with `AddToGroupControl`. `IdeaCard`'s wrapper is a `<div onClick>` rather
+than a `<button>` specifically so its selection checkbox can `stopPropagation()` without fighting
+the card's own click-to-edit behavior.
+
+`ChannelTab.handleAddToList()` checks for an existing idea whose trimmed title exactly matches the
+video's before creating a new one; a match opens `DuplicateIdeaModal.tsx` (link to the existing idea
+instead of duplicating, or force-create anyway). The actual tag-merge on confirm is not
+special-cased here — it's the same general merge `linkVideoToIdea()` always does (see "Tags
+bridge" above).
 
 **Linking** (`src/main/youtube/videos.ts`): `createIdeaFromVideo()` makes a new idea from a real
 video (title/status `published`/publishDate copied over) and links it; `linkVideoToIdea()` links an

@@ -80,6 +80,7 @@ export interface PublishedVideo {
   youtubeVideoId: string
   videoUrl: string
   title: string | null
+  description: string | null
   thumbnailUrl: string | null
   publishedAt: string | null
   viewCount: number | null
@@ -100,6 +101,13 @@ export interface ChannelConnectResult {
   success: boolean
   error?: string
   status: ChannelStatus
+}
+
+export interface AnalysisGroup {
+  id: number
+  name: string
+  createdAt: string
+  videoIds: string[]
 }
 
 export interface ShorterManagerApi {
@@ -132,5 +140,13 @@ export interface ShorterManagerApi {
     unlinkVideo: (youtubeVideoId: string) => Promise<void>
     setVideoTags: (youtubeVideoId: string, tagIds: number[]) => Promise<void>
     searchVideos: (query: string) => Promise<{ videos: PublishedVideo[]; error?: string }>
+  }
+  analysisGroups: {
+    list: () => Promise<AnalysisGroup[]>
+    create: (name: string) => Promise<AnalysisGroup>
+    rename: (id: number, name: string) => Promise<AnalysisGroup>
+    remove: (id: number) => Promise<void>
+    addVideos: (id: number, youtubeVideoIds: string[]) => Promise<AnalysisGroup>
+    removeVideo: (id: number, youtubeVideoId: string) => Promise<AnalysisGroup>
   }
 }

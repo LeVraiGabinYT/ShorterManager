@@ -37,6 +37,16 @@ const api: ShorterManagerApi = {
     setVideoTags: (youtubeVideoId: string, tagIds: number[]) =>
       ipcRenderer.invoke('channel:setVideoTags', youtubeVideoId, tagIds),
     searchVideos: (query: string) => ipcRenderer.invoke('channel:searchVideos', query)
+  },
+  analysisGroups: {
+    list: () => ipcRenderer.invoke('analysisGroups:list'),
+    create: (name: string) => ipcRenderer.invoke('analysisGroups:create', name),
+    rename: (id: number, name: string) => ipcRenderer.invoke('analysisGroups:rename', id, name),
+    remove: (id: number) => ipcRenderer.invoke('analysisGroups:remove', id),
+    addVideos: (id: number, youtubeVideoIds: string[]) =>
+      ipcRenderer.invoke('analysisGroups:addVideos', id, youtubeVideoIds),
+    removeVideo: (id: number, youtubeVideoId: string) =>
+      ipcRenderer.invoke('analysisGroups:removeVideo', id, youtubeVideoId)
   }
 }
 

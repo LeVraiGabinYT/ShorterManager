@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react'
-import type { ChannelStatus, PublishedVideo } from '@shared/types'
+import type { ChannelStatus, PublishedVideo, VideoIdea } from '@shared/types'
+import { useAnalysisGroups } from '../../hooks/useAnalysisGroups'
 import { useIdeasData } from '../../hooks/useIdeasData'
+import { AddToGroupControl } from '../analysis/AddToGroupControl'
 import { ChannelVideoDetailModal } from './ChannelVideoDetailModal'
 import { ChannelVideoRow } from './ChannelVideoRow'
+import { DuplicateIdeaModal } from './DuplicateIdeaModal'
 
 export function ChannelTab(): ReactElement {
   const { ideas, tags, tagsById, publishedVideos, refresh: refreshIdeasData } = useIdeasData()
+  const { groups, refresh: refreshGroups } = useAnalysisGroups()
   const [status, setStatus] = useState<ChannelStatus | null>(null)
   const [connecting, setConnecting] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -15,6 +19,11 @@ export function ChannelTab(): ReactElement {
   const [searchResults, setSearchResults] = useState<PublishedVideo[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [duplicateCheck, setDuplicateCheck] = useState<{
+    video: PublishedVideo
+    existingIdea: VideoIdea
+  } | null>(null)
 
   useEffect(() => {
     window.api.channel.getStatus().then(setStatus)
@@ -53,9 +62,35 @@ export function ChannelTab(): ReactElement {
     await refreshIdeasData()
   }
 
-  async function handleAddToList(video: PublishedVideo): Promise<void> {
+  function findDuplicateIdea(video: PublishedVideo): VideoIdea | null {
+    const title = video.title?.trim()
+    if (!title) return null
+    return ideas.find((idea) => idea.title.trim() === title) ?? null
+  }
+
+  function handleAddToList(video: PublishedVideo): void {
+    const existingIdea = findDuplicateIdea(video)
+    if (existingIdea) {
+      setDuplicateCheck({ video, existingIdea })
+      return
+    }
+    createNewIdeaFromVideo(video)
+  }
+
+  async function createNewIdeaFromVideo(video: PublishedVideo): Promise<void> {
     await window.api.channel.createIdeaFromVideo(video.youtubeVideoId)
     setSelectedVideo(null)
+    setDuplicateCheck(null)
+    await refreshIdeasData()
+  }
+
+  async function mergeIntoExistingIdea(
+    video: PublishedVideo,
+    existingIdea: VideoIdea
+  ): Promise<void> {
+    await window.api.channel.linkVideoToIdea(video.youtubeVideoId, existingIdea.id)
+    setSelectedVideo(null)
+    setDuplicateCheck(null)
     await refreshIdeasData()
   }
 
@@ -92,6 +127,16 @@ export function ChannelTab(): ReactElement {
     setSearchQuery('')
     setSearchResults(null)
     setSearchError(null)
+    setSelectedIds(new Set())
+  }
+
+  function toggleVideoSelection(youtubeVideoId: string): void {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(youtubeVideoId)) next.delete(youtubeVideoId)
+      else next.add(youtubeVideoId)
+      return next
+    })
   }
 
   return (
@@ -168,6 +213,23 @@ export function ChannelTab(): ReactElement {
               </p>
             )}
 
+            {selectedIds.size > 0 && (
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
+                <p className="mb-2 text-xs text-gray-400">
+                  {selectedIds.size} vidéo{selectedIds.size > 1 ? 's' : ''} sélectionnée
+                  {selectedIds.size > 1 ? 's' : ''}
+                </p>
+                <AddToGroupControl
+                  groups={groups}
+                  selectedVideoIds={[...selectedIds]}
+                  onAdded={async () => {
+                    setSelectedIds(new Set())
+                    await refreshGroups()
+                  }}
+                />
+              </div>
+            )}
+
             {videosToShow.length === 0 ? (
               <p className="text-sm text-gray-500">
                 {searchResults !== null
@@ -176,14 +238,38 @@ export function ChannelTab(): ReactElement {
               </p>
             ) : (
               <div className="space-y-2">
-                {videosToShow.map((video) => (
-                  <ChannelVideoRow
-                    key={video.youtubeVideoId}
-                    video={video}
-                    linkedIdea={video.ideaId ? (ideasById.get(video.ideaId) ?? null) : null}
-                    tagsById={tagsById}
-                    onClick={() => setSelectedVideo(video)}
+                <label className="flex items-center gap-2 px-1 text-xs text-gray-500">
+                  <input
+                    type="checkbox"
+                    checked={videosToShow.every((v) => selectedIds.has(v.youtubeVideoId))}
+                    onChange={(e) =>
+                      setSelectedIds(
+                        e.target.checked
+                          ? new Set(videosToShow.map((v) => v.youtubeVideoId))
+                          : new Set()
+                      )
+                    }
+                    className="h-4 w-4 rounded border-white/20 bg-white/5 accent-blue-600"
                   />
+                  Tout sélectionner ({videosToShow.length})
+                </label>
+                {videosToShow.map((video) => (
+                  <div key={video.youtubeVideoId} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(video.youtubeVideoId)}
+                      onChange={() => toggleVideoSelection(video.youtubeVideoId)}
+                      className="h-4 w-4 shrink-0 rounded border-white/20 bg-white/5 accent-blue-600"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <ChannelVideoRow
+                        video={video}
+                        linkedIdea={video.ideaId ? (ideasById.get(video.ideaId) ?? null) : null}
+                        tagsById={tagsById}
+                        onClick={() => setSelectedVideo(video)}
+                      />
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
@@ -227,6 +313,17 @@ export function ChannelTab(): ReactElement {
           onUnlink={() => handleUnlink(selectedVideo)}
           onSetTags={(tagIds) => handleSetTags(selectedVideo, tagIds)}
           onTagsChanged={refreshIdeasData}
+        />
+      )}
+
+      {duplicateCheck && (
+        <DuplicateIdeaModal
+          video={duplicateCheck.video}
+          existingIdea={duplicateCheck.existingIdea}
+          tagsById={tagsById}
+          onMerge={() => mergeIntoExistingIdea(duplicateCheck.video, duplicateCheck.existingIdea)}
+          onCreateNew={() => createNewIdeaFromVideo(duplicateCheck.video)}
+          onCancel={() => setDuplicateCheck(null)}
         />
       )}
     </div>

@@ -3,6 +3,7 @@ import type { OwnedObject, PublishedVideo, Tag, VideoIdea } from '@shared/types'
 
 export interface IdeasData {
   ideas: VideoIdea[]
+  ideasById: Map<number, VideoIdea>
   objects: OwnedObject[]
   objectsById: Map<number, OwnedObject>
   tags: Tag[]
@@ -38,6 +39,7 @@ export function useIdeasData(): IdeasData {
     refresh()
   }, [refresh])
 
+  const ideasById = useMemo(() => new Map(ideas.map((i) => [i.id, i])), [ideas])
   const objectsById = useMemo(() => new Map(objects.map((o) => [o.id, o])), [objects])
   const tagsById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags])
   const publishedVideosByIdeaId = useMemo(
@@ -48,6 +50,7 @@ export function useIdeasData(): IdeasData {
 
   return {
     ideas,
+    ideasById,
     objects,
     objectsById,
     tags,

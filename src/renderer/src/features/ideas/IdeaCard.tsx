@@ -10,25 +10,47 @@ interface IdeaCardProps {
   idea: VideoIdea
   objectsById: Map<number, OwnedObject>
   tagsById: Map<number, Tag>
+  selected: boolean
+  onToggleSelect: () => void
   onClick: () => void
 }
 
-export function IdeaCard({ idea, objectsById, tagsById, onClick }: IdeaCardProps): ReactElement {
+export function IdeaCard({
+  idea,
+  objectsById,
+  tagsById,
+  selected,
+  onToggleSelect,
+  onClick
+}: IdeaCardProps): ReactElement {
   const { status, missingObjects } = getEffectiveStatus(idea, objectsById)
   const statusLabel = IDEA_STATUSES.find((s) => s.value === status)?.label ?? status
   const objects = idea.objectIds.map((id) => objectsById.get(id)).filter(Boolean) as OwnedObject[]
   const tags = idea.tagIds.map((id) => tagsById.get(id)).filter(Boolean) as Tag[]
 
   return (
-    <button
+    <div
       onClick={onClick}
-      className="w-full text-left rounded-lg border border-white/10 bg-white/[0.03] p-4 hover:bg-white/[0.06] hover:border-white/20 transition-colors"
+      className={`w-full cursor-pointer rounded-lg border p-4 transition-colors ${
+        selected
+          ? 'border-blue-500/50 bg-blue-500/10'
+          : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/20'
+      }`}
     >
       <div className="flex items-start justify-between gap-3">
-        <h3 className="font-medium text-gray-100 leading-snug">
-          {idea.emoji && <span className="mr-1.5">{idea.emoji}</span>}
-          {idea.title}
-        </h3>
+        <div className="flex min-w-0 items-start gap-2">
+          <input
+            type="checkbox"
+            checked={selected}
+            onClick={(e) => e.stopPropagation()}
+            onChange={onToggleSelect}
+            className="mt-1 h-4 w-4 shrink-0 rounded border-white/20 bg-white/5 accent-blue-600"
+          />
+          <h3 className="min-w-0 font-medium text-gray-100 leading-snug">
+            {idea.emoji && <span className="mr-1.5">{idea.emoji}</span>}
+            {idea.title}
+          </h3>
+        </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           <span
             className={`rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[status]}`}
@@ -78,6 +100,6 @@ export function IdeaCard({ idea, objectsById, tagsById, onClick }: IdeaCardProps
           ))}
         </div>
       )}
-    </button>
+    </div>
   )
 }

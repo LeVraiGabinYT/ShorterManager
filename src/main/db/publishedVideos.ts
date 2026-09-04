@@ -6,6 +6,7 @@ interface PublishedVideoRow {
   idea_id: number | null
   youtube_video_id: string
   title: string | null
+  description: string | null
   thumbnail_url: string | null
   published_at: string | null
   view_count: number | null
@@ -18,6 +19,7 @@ interface PublishedVideoRow {
 export interface UpsertPublishedVideoInput {
   youtubeVideoId: string
   title: string | null
+  description: string | null
   thumbnailUrl: string | null
   publishedAt: string | null
   viewCount: number | null
@@ -47,6 +49,7 @@ function toPublishedVideo(row: PublishedVideoRow): PublishedVideo {
     youtubeVideoId: row.youtube_video_id,
     videoUrl: `https://www.youtube.com/shorts/${row.youtube_video_id}`,
     title: row.title,
+    description: row.description,
     thumbnailUrl: row.thumbnail_url,
     publishedAt: row.published_at,
     viewCount: row.view_count,
@@ -71,13 +74,14 @@ export function upsertPublishedVideo(input: UpsertPublishedVideoInput): void {
   getDb()
     .prepare(
       `INSERT INTO published_videos
-         (youtube_video_id, title, thumbnail_url, published_at, view_count, like_count,
-          comment_count, average_view_percentage, stats_fetched_at)
+         (youtube_video_id, title, description, thumbnail_url, published_at, view_count,
+          like_count, comment_count, average_view_percentage, stats_fetched_at)
        VALUES
-         (@youtubeVideoId, @title, @thumbnailUrl, @publishedAt, @viewCount, @likeCount,
-          @commentCount, @averageViewPercentage, datetime('now'))
+         (@youtubeVideoId, @title, @description, @thumbnailUrl, @publishedAt, @viewCount,
+          @likeCount, @commentCount, @averageViewPercentage, datetime('now'))
        ON CONFLICT(youtube_video_id) DO UPDATE SET
          title = excluded.title,
+         description = excluded.description,
          thumbnail_url = excluded.thumbnail_url,
          published_at = excluded.published_at,
          view_count = excluded.view_count,
