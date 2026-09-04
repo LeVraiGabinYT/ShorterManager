@@ -4,9 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-ShorterManager is a native macOS desktop app (Electron + React + TypeScript) for managing the
-content pipeline of a YouTube channel: video ideas, purchased gear/objects, and (eventually) the
-channel itself via YouTube Data API / Google OAuth.
+ShorterManager is a cross-platform desktop app (Electron + React + TypeScript — runs identically on
+macOS, Windows, and Linux; not a native-macOS-only app) for managing the content pipeline of a
+YouTube channel: video ideas, purchased gear/objects, and (eventually) the channel itself via
+YouTube Data API / Google OAuth.
 
 For current feature status and what to build next, see `PROGRESS.md` — read it at the start of
 any session on this repo before planning work.
