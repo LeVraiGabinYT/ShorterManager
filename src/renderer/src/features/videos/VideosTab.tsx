@@ -14,7 +14,7 @@ const SUB_TABS = [
 type SubTabId = (typeof SUB_TABS)[number]['id']
 
 export function VideosTab(): ReactElement {
-  const [activeSubTab, setActiveSubTab] = useState<SubTabId>('plannings')
+  const [activeSubTab, setActiveSubTab] = useState<SubTabId>('ideas')
 
   return (
     <div className="flex h-full flex-col">

@@ -16,7 +16,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 
 function App(): ReactElement {
-  const [activeTab, setActiveTab] = useState<TabId>('overview')
+  const [activeTab, setActiveTab] = useState<TabId>('videos')
 
   return (
     <div className="flex h-screen flex-col bg-[#0b0c0f]">

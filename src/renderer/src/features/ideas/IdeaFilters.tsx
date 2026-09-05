@@ -85,7 +85,20 @@ export function IdeaFilters({
   series
 }: IdeaFiltersProps): ReactElement {
   const [expanded, setExpanded] = useState(false)
+  const [tagQuery, setTagQuery] = useState('')
+  const [objectQuery, setObjectQuery] = useState('')
   const active = isFiltersActive(filters)
+
+  const visibleTags = tags.filter(
+    (tag) =>
+      filters.tagIds.includes(tag.id) ||
+      tag.name.toLowerCase().includes(tagQuery.trim().toLowerCase())
+  )
+  const visibleObjects = objects.filter(
+    (obj) =>
+      filters.objectIds.includes(obj.id) ||
+      obj.name.toLowerCase().includes(objectQuery.trim().toLowerCase())
+  )
 
   function toggleStatus(status: IdeaStatus): void {
     onChange({
@@ -129,7 +142,7 @@ export function IdeaFilters({
         <input
           value={filters.keyword}
           onChange={(e) => onChange({ ...filters, keyword: e.target.value })}
-          placeholder="Rechercher un mot-clé (titre, description)..."
+          placeholder="Rechercher un mot-clé (titre, description, tags)..."
           className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-gray-100 outline-none focus:border-blue-500/60"
         />
         <button
@@ -183,26 +196,36 @@ export function IdeaFilters({
               {tags.length === 0 ? (
                 <p className="text-xs text-gray-600">Aucun tag créé pour l’instant.</p>
               ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {tags.map((tag) => {
-                    const selected = filters.tagIds.includes(tag.id)
-                    return (
-                      <button
-                        type="button"
-                        key={tag.id}
-                        onClick={() => toggleTag(tag.id)}
-                        style={selected ? getTagChipStyle(tag.color) : undefined}
-                        className={`rounded-md border px-2 py-1 text-xs ${
-                          selected
-                            ? ''
-                            : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
-                        }`}
-                      >
-                        {tag.name}
-                      </button>
-                    )
-                  })}
-                </div>
+                <>
+                  {tags.length > 6 && (
+                    <input
+                      value={tagQuery}
+                      onChange={(e) => setTagQuery(e.target.value)}
+                      placeholder="Rechercher un tag..."
+                      className="mb-1.5 w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-gray-100 outline-none focus:border-blue-500/60"
+                    />
+                  )}
+                  <div className="flex flex-wrap gap-1.5">
+                    {visibleTags.map((tag) => {
+                      const selected = filters.tagIds.includes(tag.id)
+                      return (
+                        <button
+                          type="button"
+                          key={tag.id}
+                          onClick={() => toggleTag(tag.id)}
+                          style={selected ? getTagChipStyle(tag.color) : undefined}
+                          className={`rounded-md border px-2 py-1 text-xs ${
+                            selected
+                              ? ''
+                              : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                          }`}
+                        >
+                          {tag.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
               )}
             </div>
 
@@ -211,22 +234,32 @@ export function IdeaFilters({
               {objects.length === 0 ? (
                 <p className="text-xs text-gray-600">Aucun objet enregistré pour l’instant.</p>
               ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {objects.map((obj) => (
-                    <button
-                      type="button"
-                      key={obj.id}
-                      onClick={() => toggleObject(obj.id)}
-                      className={`rounded-md border px-2 py-1 text-xs transition-colors ${
-                        filters.objectIds.includes(obj.id)
-                          ? 'border-blue-500/60 bg-blue-500/20 text-blue-200'
-                          : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
-                      }`}
-                    >
-                      {obj.name}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  {objects.length > 6 && (
+                    <input
+                      value={objectQuery}
+                      onChange={(e) => setObjectQuery(e.target.value)}
+                      placeholder="Rechercher un objet..."
+                      className="mb-1.5 w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-gray-100 outline-none focus:border-blue-500/60"
+                    />
+                  )}
+                  <div className="flex flex-wrap gap-1.5">
+                    {visibleObjects.map((obj) => (
+                      <button
+                        type="button"
+                        key={obj.id}
+                        onClick={() => toggleObject(obj.id)}
+                        className={`rounded-md border px-2 py-1 text-xs transition-colors ${
+                          filters.objectIds.includes(obj.id)
+                            ? 'border-blue-500/60 bg-blue-500/20 text-blue-200'
+                            : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                        }`}
+                      >
+                        {obj.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
 
