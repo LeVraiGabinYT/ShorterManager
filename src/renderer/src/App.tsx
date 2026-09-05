@@ -1,16 +1,16 @@
 import { useState, type ReactElement } from 'react'
 import { OverviewTab } from './features/overview/OverviewTab'
-import { IdeasTab } from './features/ideas/IdeasTab'
-import { ObjectsTab } from './features/objects/ObjectsTab'
-import { ChannelTab } from './features/channel/ChannelTab'
+import { VideosTab } from './features/videos/VideosTab'
+import { PropertiesTab } from './features/properties/PropertiesTab'
 import { AnalysisTab } from './features/analysis/AnalysisTab'
+import { SettingsTab } from './features/settings/SettingsTab'
 
 const TABS = [
   { id: 'overview', label: 'Vue d’ensemble' },
-  { id: 'ideas', label: 'Idées' },
-  { id: 'objects', label: 'Objets achetés' },
-  { id: 'channel', label: 'Chaîne YouTube' },
-  { id: 'analysis', label: 'Analyse' }
+  { id: 'videos', label: 'Vidéos' },
+  { id: 'properties', label: 'Propriétés' },
+  { id: 'analysis', label: 'Analyse' },
+  { id: 'settings', label: 'Paramètres' }
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -29,7 +29,7 @@ function App(): ReactElement {
               activeTab === tab.id
                 ? 'bg-white/5 text-gray-100 border-b-2 border-blue-500'
                 : 'text-gray-500 hover:text-gray-300'
-            }`}
+            } ${tab.id === 'settings' ? 'ml-auto' : ''}`}
           >
             {tab.label}
           </button>
@@ -38,10 +38,10 @@ function App(): ReactElement {
 
       <main className="flex-1 overflow-hidden">
         {activeTab === 'overview' && <OverviewTab />}
-        {activeTab === 'ideas' && <IdeasTab />}
-        {activeTab === 'objects' && <ObjectsTab />}
-        {activeTab === 'channel' && <ChannelTab />}
+        {activeTab === 'videos' && <VideosTab />}
+        {activeTab === 'properties' && <PropertiesTab />}
         {activeTab === 'analysis' && <AnalysisTab />}
+        {activeTab === 'settings' && <SettingsTab />}
       </main>
     </div>
   )
