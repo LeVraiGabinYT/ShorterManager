@@ -4,7 +4,9 @@ import { join } from 'path'
 import type { AppSettings } from '../shared/types'
 
 const DEFAULT_SETTINGS: AppSettings = {
-  maxRecentVideos: 25
+  maxRecentVideos: 25,
+  ruleAutoStatusOnLink: true,
+  ruleMissingObjectsPreparation: true
 }
 
 function getSettingsPath(): string {

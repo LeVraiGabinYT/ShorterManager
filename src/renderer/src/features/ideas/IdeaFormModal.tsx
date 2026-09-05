@@ -21,6 +21,7 @@ interface IdeaFormModalProps {
   existingIdeas: VideoIdea[]
   linkedVideo: PublishedVideo | null
   unlinkedVideos: PublishedVideo[]
+  ruleMissingObjectsPreparation?: boolean
   onClose: () => void
   onSave: (input: VideoIdeaInput) => void
   onDelete?: () => void
@@ -38,6 +39,7 @@ export function IdeaFormModal({
   existingIdeas,
   linkedVideo,
   unlinkedVideos,
+  ruleMissingObjectsPreparation = true,
   onClose,
   onSave,
   onDelete,
@@ -105,7 +107,7 @@ export function IdeaFormModal({
             {idea ? "Modifier l'idée" : 'Nouvelle idée'}
           </h2>
 
-          {missingObjects && status !== 'published' && (
+          {ruleMissingObjectsPreparation && missingObjects && status !== 'published' && (
             <p className="mt-3 rounded-md border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-xs text-orange-300">
               Objets manquants : cette idée s’affiche comme « Préparation » tant que tous les objets
               nécessaires ne sont pas marqués comme achetés.

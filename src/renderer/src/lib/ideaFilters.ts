@@ -1,4 +1,4 @@
-import type { IdeaStatus, OwnedObject, VideoIdea } from '@shared/types'
+import type { IdeaStatus, OwnedObject, Tag, VideoIdea } from '@shared/types'
 import { getEffectiveStatus } from './ideaStatus'
 
 export type DateFilterMode = 'any' | 'exact' | 'range'
@@ -104,18 +104,21 @@ export function sortIdeas(ideas: VideoIdea[], sort: IdeaSortState): VideoIdea[] 
 export function filterIdeas(
   ideas: VideoIdea[],
   filters: IdeaFiltersState,
-  objectsById: Map<number, OwnedObject>
+  objectsById: Map<number, OwnedObject>,
+  tagsById: Map<number, Tag>,
+  ruleMissingObjectsPreparation = true
 ): VideoIdea[] {
   const keyword = filters.keyword.trim().toLowerCase()
 
   return ideas.filter((idea) => {
     if (keyword) {
-      const haystack = `${idea.title} ${idea.description ?? ''}`.toLowerCase()
+      const tagNames = idea.tagIds.map((id) => tagsById.get(id)?.name ?? '').join(' ')
+      const haystack = `${idea.title} ${idea.description ?? ''} ${tagNames}`.toLowerCase()
       if (!haystack.includes(keyword)) return false
     }
 
     if (filters.statuses.length > 0) {
-      const { status } = getEffectiveStatus(idea, objectsById)
+      const { status } = getEffectiveStatus(idea, objectsById, ruleMissingObjectsPreparation)
       if (!filters.statuses.includes(status)) return false
     }
 

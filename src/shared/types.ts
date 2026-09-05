@@ -120,6 +120,9 @@ export interface AppInfo {
 
 export interface AppSettings {
   maxRecentVideos: number
+  // "Règles" (Paramètres): default-on automations the user can turn off.
+  ruleAutoStatusOnLink: boolean
+  ruleMissingObjectsPreparation: boolean
 }
 
 export type BackupMode = 'merge' | 'replace'
@@ -140,6 +143,7 @@ export interface BackupImportResult {
   addedTags?: number
   addedSeries?: number
   addedVideos?: number
+  relinkedVideos?: number
   channelRestored?: boolean
 }
 
@@ -196,5 +200,6 @@ export interface ShorterManagerApi {
     export: () => Promise<BackupExportResult>
     pickImportFile: () => Promise<string | null>
     import: (filePath: string, mode: BackupMode) => Promise<BackupImportResult>
+    wipeAll: () => Promise<{ success: boolean; error?: string }>
   }
 }

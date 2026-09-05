@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactElement } from 'react'
-import type { OwnedObject, Series, Tag, VideoIdea, VideoIdeaInput } from '@shared/types'
+import type { OwnedObject, Series, VideoIdea, VideoIdeaInput } from '@shared/types'
 import { useIdeasData } from '../../hooks/useIdeasData'
 import { getEffectiveStatus } from '../../lib/ideaStatus'
 import { IdeaFormModal } from '../ideas/IdeaFormModal'
@@ -37,8 +37,8 @@ interface IdeaListSectionProps {
   emptyLabel: string
   ideas: VideoIdea[]
   objectsById: Map<number, OwnedObject>
-  tagsById: Map<number, Tag>
   seriesById: Map<number, Series>
+  ruleMissingObjectsPreparation: boolean
   onSelect: (idea: VideoIdea) => void
 }
 
@@ -47,8 +47,8 @@ function IdeaListSection({
   emptyLabel,
   ideas,
   objectsById,
-  tagsById,
   seriesById,
+  ruleMissingObjectsPreparation,
   onSelect
 }: IdeaListSectionProps): ReactElement {
   return (
@@ -65,8 +65,8 @@ function IdeaListSection({
               key={idea.id}
               idea={idea}
               objectsById={objectsById}
-              tagsById={tagsById}
               seriesById={seriesById}
+              ruleMissingObjectsPreparation={ruleMissingObjectsPreparation}
               onClick={() => onSelect(idea)}
             />
           ))}
@@ -82,11 +82,11 @@ export function OverviewTab(): ReactElement {
     objects,
     objectsById,
     tags,
-    tagsById,
     series,
     seriesById,
     publishedVideos,
     publishedVideosByIdeaId,
+    settings,
     loading,
     refresh
   } = useIdeasData()
@@ -97,8 +97,12 @@ export function OverviewTab(): ReactElement {
   )
 
   const effective = useMemo(
-    () => ideas.map((idea) => ({ idea, ...getEffectiveStatus(idea, objectsById) })),
-    [ideas, objectsById]
+    () =>
+      ideas.map((idea) => ({
+        idea,
+        ...getEffectiveStatus(idea, objectsById, settings.ruleMissingObjectsPreparation)
+      })),
+    [ideas, objectsById, settings.ruleMissingObjectsPreparation]
   )
 
   const readyOrScheduledCount = effective.filter(
@@ -166,8 +170,8 @@ export function OverviewTab(): ReactElement {
                 emptyLabel="Aucune vidéo à monter."
                 ideas={editingIdeas}
                 objectsById={objectsById}
-                tagsById={tagsById}
                 seriesById={seriesById}
+                ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
                 onSelect={setSelectedIdea}
               />
               <IdeaListSection
@@ -175,8 +179,8 @@ export function OverviewTab(): ReactElement {
                 emptyLabel="Aucun tournage prévu aujourd’hui."
                 ideas={shootingToday}
                 objectsById={objectsById}
-                tagsById={tagsById}
                 seriesById={seriesById}
+                ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
                 onSelect={setSelectedIdea}
               />
               <IdeaListSection
@@ -184,8 +188,8 @@ export function OverviewTab(): ReactElement {
                 emptyLabel="Aucune vidéo programmée."
                 ideas={scheduledIdeas}
                 objectsById={objectsById}
-                tagsById={tagsById}
                 seriesById={seriesById}
+                ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
                 onSelect={setSelectedIdea}
               />
               <IdeaListSection
@@ -193,8 +197,8 @@ export function OverviewTab(): ReactElement {
                 emptyLabel="Aucune vidéo prête."
                 ideas={readyIdeas}
                 objectsById={objectsById}
-                tagsById={tagsById}
                 seriesById={seriesById}
+                ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
                 onSelect={setSelectedIdea}
               />
             </div>
@@ -214,6 +218,7 @@ export function OverviewTab(): ReactElement {
           onClose={() => setSelectedIdea(null)}
           onSave={handleUpdate}
           onDelete={handleDelete}
+          ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
           onTagsChanged={refresh}
           onSeriesChanged={refresh}
           onLinkVideo={handleLinkVideo}

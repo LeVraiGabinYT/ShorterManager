@@ -1,4 +1,4 @@
-import { getIdeaById, markIdeaPublished, createIdea, updateIdea } from '../db/ideas'
+import { getIdeaById, setIdeaLinkedStatus, createIdea, updateIdea } from '../db/ideas'
 import {
   getPublishedVideoIdByYoutubeId,
   linkVideoToIdea as dbLinkVideoToIdea,
@@ -10,6 +10,18 @@ import {
 import { getValidAccessToken } from './oauth'
 import { loadSettings } from '../settings'
 import type { PublishedVideo, VideoIdea } from '../../shared/types'
+
+/**
+ * "Règle" (toggleable in Paramètres): linking a real video normally forces the idea to
+ * "Publiée" — but a video dated today with 0 views is almost certainly still a scheduled
+ * premiere/upload rather than truly live yet, so it's marked "Programmée" instead.
+ */
+function computeAutoLinkedStatus(video: PublishedVideo): 'published' | 'scheduled' {
+  const publishDateStr = video.publishedAt ? video.publishedAt.slice(0, 10) : null
+  const today = new Date().toISOString().slice(0, 10)
+  const looksScheduled = publishDateStr === today && (video.viewCount ?? 0) === 0
+  return looksScheduled ? 'scheduled' : 'published'
+}
 
 async function youtubeFetch<T>(url: string): Promise<T> {
   const token = await getValidAccessToken()
@@ -184,11 +196,13 @@ export function createIdeaFromVideo(youtubeVideoId: string): VideoIdea {
   const video = listPublishedVideos().find((v) => v.youtubeVideoId === youtubeVideoId)
   if (!video) throw new Error('Vidéo introuvable.')
 
+  const autoStatusRule = loadSettings().ruleAutoStatusOnLink
+
   const idea = createIdea({
     title: video.title ?? 'Vidéo sans titre',
     emoji: null,
     description: null,
-    status: 'published',
+    status: autoStatusRule ? computeAutoLinkedStatus(video) : 'idea',
     publishDate: video.publishedAt ? video.publishedAt.slice(0, 10) : null,
     shootDate: null,
     objectIds: [],
@@ -218,7 +232,17 @@ export function linkVideoToIdea(youtubeVideoId: string, ideaId: number): VideoId
   }
 
   dbLinkVideoToIdea(youtubeVideoId, ideaId)
-  return markIdeaPublished(ideaId, video?.publishedAt ? video.publishedAt.slice(0, 10) : null)
+
+  if (!loadSettings().ruleAutoStatusOnLink) {
+    return getIdeaById(ideaId)
+  }
+
+  const status = video ? computeAutoLinkedStatus(video) : 'published'
+  return setIdeaLinkedStatus(
+    ideaId,
+    status,
+    video?.publishedAt ? video.publishedAt.slice(0, 10) : null
+  )
 }
 
 export function unlinkVideo(youtubeVideoId: string): void {

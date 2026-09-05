@@ -150,21 +150,35 @@ function isValidBackupData(data: unknown): data is BackupData {
   )
 }
 
+function wipeAllData(db: ReturnType<typeof getDb>): void {
+  db.exec(`
+    DELETE FROM published_video_tags;
+    DELETE FROM published_videos;
+    DELETE FROM idea_tags;
+    DELETE FROM idea_objects;
+    DELETE FROM ideas;
+    DELETE FROM tags;
+    DELETE FROM objects;
+    DELETE FROM series;
+    DELETE FROM channel_connection;
+  `)
+}
+
+export function wipeAllAppData(): { success: boolean; error?: string } {
+  try {
+    const db = getDb()
+    db.transaction(() => wipeAllData(db))()
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
 function importReplace(data: BackupData): BackupImportResult {
   const db = getDb()
 
   const txn = db.transaction(() => {
-    db.exec(`
-      DELETE FROM published_video_tags;
-      DELETE FROM published_videos;
-      DELETE FROM idea_tags;
-      DELETE FROM idea_objects;
-      DELETE FROM ideas;
-      DELETE FROM tags;
-      DELETE FROM objects;
-      DELETE FROM series;
-      DELETE FROM channel_connection;
-    `)
+    wipeAllData(db)
 
     for (const obj of data.objects) {
       db.prepare(
@@ -290,12 +304,28 @@ function importMerge(data: BackupData): BackupImportResult {
   let addedIdeas = 0
   let skippedIdeas = 0
   let addedVideos = 0
+  let relinkedVideos = 0
   let channelRestored = false
 
   const txn = db.transaction(() => {
-    // Objects have no uniqueness rule anywhere else in the app — always import as new.
+    // Every "reuse by natural key" map below is built ONCE from the state the target DB had
+    // BEFORE this import, and is never fed newly-created rows afterwards. This matters: if the
+    // backup itself contains two different source records that happen to share the same name/
+    // title (a channel can easily have several videos with the same generic title), each must
+    // still become its own row — they must only be deduped against something that already
+    // existed locally, never against a sibling from the very same import batch.
+
+    // Objects have no DB uniqueness constraint, but reuse an existing same-name object anyway —
+    // otherwise re-merging the same (or an overlapping) backup would duplicate every object
+    // each time, which defeats the point of "merge" vs. "replace".
     const objectIdMap = new Map<number, number>()
+    const objectsByName = new Map(listObjects().map((o) => [o.name.trim(), o]))
     for (const obj of data.objects) {
+      const existing = objectsByName.get(obj.name.trim())
+      if (existing) {
+        objectIdMap.set(obj.id, existing.id)
+        continue
+      }
       const created = createObject({
         name: obj.name,
         description: obj.description,
@@ -308,19 +338,17 @@ function importMerge(data: BackupData): BackupImportResult {
       addedObjects++
     }
 
-    // Tags and series both have a UNIQUE(name) DB constraint — reuse the existing one instead
-    // of erroring, matching the natural "same name = same thing" expectation.
+    // Tags and series both have a UNIQUE(name) DB constraint, so the backup itself can never
+    // contain two of its own with the same name — reuse an existing one instead of erroring.
     const tagIdMap = new Map<number, number>()
     const tagsByName = new Map(listTags().map((t) => [t.name.trim(), t]))
     for (const tag of data.tags) {
-      const key = tag.name.trim()
-      const existing = tagsByName.get(key)
+      const existing = tagsByName.get(tag.name.trim())
       if (existing) {
         tagIdMap.set(tag.id, existing.id)
         continue
       }
       const created = createTag({ name: tag.name, color: tag.color })
-      tagsByName.set(key, created)
       tagIdMap.set(tag.id, created.id)
       addedTags++
     }
@@ -328,25 +356,23 @@ function importMerge(data: BackupData): BackupImportResult {
     const seriesIdMap = new Map<number, number>()
     const seriesByName = new Map(listSeries().map((s) => [s.name.trim(), s]))
     for (const s of data.series) {
-      const key = s.name.trim()
-      const existing = seriesByName.get(key)
+      const existing = seriesByName.get(s.name.trim())
       if (existing) {
         seriesIdMap.set(s.id, existing.id)
         continue
       }
       const created = createSeries(s.name)
-      seriesByName.set(key, created)
       seriesIdMap.set(s.id, created.id)
       addedSeries++
     }
 
-    // Hard rule: never create a second idea with the same (trimmed) title — reuse the existing
-    // one instead, so later videos in this same import can still link to it.
+    // Hard rule: never create a second idea with a title that already exists LOCALLY — but two
+    // source ideas sharing a title with each other (not with anything local) both get created,
+    // otherwise their videos would collapse onto a single surviving idea.
     const ideaIdMap = new Map<number, number>()
     const ideasByTitle = new Map(listIdeas().map((i) => [i.title.trim(), i]))
     for (const idea of data.ideas) {
-      const key = idea.title.trim()
-      const existing = ideasByTitle.get(key)
+      const existing = ideasByTitle.get(idea.title.trim())
       if (existing) {
         ideaIdMap.set(idea.id, existing.id)
         skippedIdeas++
@@ -367,40 +393,51 @@ function importMerge(data: BackupData): BackupImportResult {
           .map((id) => tagIdMap.get(id))
           .filter((id): id is number => id !== undefined)
       })
-      ideasByTitle.set(key, created)
       ideaIdMap.set(idea.id, created.id)
       addedIdeas++
     }
 
-    // Published videos are naturally keyed by youtubeVideoId — skip ones already cached.
-    const existingVideoIds = new Set(listPublishedVideos().map((v) => v.youtubeVideoId))
+    // Published videos are naturally keyed by youtubeVideoId. A video that already exists
+    // locally is left as-is EXCEPT its idea link: if it isn't linked locally but the backup
+    // says it should be, that link is still applied — a video existing (e.g. from a channel
+    // refresh) must never block restoring the association the backup remembers.
+    const existingVideosByYtId = new Map(listPublishedVideos().map((v) => [v.youtubeVideoId, v]))
     for (const video of data.publishedVideos) {
-      if (existingVideoIds.has(video.youtubeVideoId)) continue
+      const existingVideo = existingVideosByYtId.get(video.youtubeVideoId)
 
-      upsertPublishedVideo({
-        youtubeVideoId: video.youtubeVideoId,
-        title: video.title,
-        description: video.description,
-        thumbnailUrl: video.thumbnailUrl,
-        publishedAt: video.publishedAt,
-        viewCount: video.viewCount,
-        likeCount: video.likeCount,
-        commentCount: video.commentCount,
-        averageViewPercentage: video.averageViewPercentage
-      })
-      const newVideoId = getPublishedVideoIdByYoutubeId(video.youtubeVideoId)
-      if (newVideoId === null) continue
+      if (!existingVideo) {
+        upsertPublishedVideo({
+          youtubeVideoId: video.youtubeVideoId,
+          title: video.title,
+          description: video.description,
+          thumbnailUrl: video.thumbnailUrl,
+          publishedAt: video.publishedAt,
+          viewCount: video.viewCount,
+          likeCount: video.likeCount,
+          commentCount: video.commentCount,
+          averageViewPercentage: video.averageViewPercentage
+        })
+        addedVideos++
+      }
+
+      const currentVideoId = existingVideo
+        ? existingVideo.id
+        : getPublishedVideoIdByYoutubeId(video.youtubeVideoId)
+      if (currentVideoId === null) continue
 
       if (video.ideaId !== null) {
         const mappedIdeaId = ideaIdMap.get(video.ideaId)
-        if (mappedIdeaId !== undefined) linkVideoToIdea(video.youtubeVideoId, mappedIdeaId)
-      } else if (video.tagIds.length > 0) {
+        const alreadyLinkedLocally = existingVideo ? existingVideo.ideaId !== null : false
+        if (mappedIdeaId !== undefined && !alreadyLinkedLocally) {
+          linkVideoToIdea(video.youtubeVideoId, mappedIdeaId)
+          if (existingVideo) relinkedVideos++
+        }
+      } else if (!existingVideo && video.tagIds.length > 0) {
         const mappedTagIds = video.tagIds
           .map((id) => tagIdMap.get(id))
           .filter((id): id is number => id !== undefined)
-        setPublishedVideoTags(newVideoId, mappedTagIds)
+        setPublishedVideoTags(currentVideoId, mappedTagIds)
       }
-      addedVideos++
     }
 
     // Never clobber an already-connected channel with an imported one.
@@ -421,6 +458,7 @@ function importMerge(data: BackupData): BackupImportResult {
     addedTags,
     addedSeries,
     addedVideos,
+    relinkedVideos,
     channelRestored
   }
 }

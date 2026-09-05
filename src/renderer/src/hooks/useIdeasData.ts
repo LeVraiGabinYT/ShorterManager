@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { OwnedObject, PublishedVideo, Series, Tag, VideoIdea } from '@shared/types'
+import type {
+  AppSettings,
+  OwnedObject,
+  PublishedVideo,
+  Series,
+  Tag,
+  VideoIdea
+} from '@shared/types'
+
+const DEFAULT_SETTINGS: AppSettings = {
+  maxRecentVideos: 25,
+  ruleAutoStatusOnLink: true,
+  ruleMissingObjectsPreparation: true
+}
 
 export interface IdeasData {
   ideas: VideoIdea[]
@@ -12,6 +25,7 @@ export interface IdeasData {
   seriesById: Map<number, Series>
   publishedVideos: PublishedVideo[]
   publishedVideosByIdeaId: Map<number, PublishedVideo>
+  settings: AppSettings
   loading: boolean
   refresh: () => Promise<void>
 }
@@ -22,21 +36,25 @@ export function useIdeasData(): IdeasData {
   const [tags, setTags] = useState<Tag[]>([])
   const [series, setSeries] = useState<Series[]>([])
   const [publishedVideos, setPublishedVideos] = useState<PublishedVideo[]>([])
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
 
   const refresh = useCallback(async () => {
-    const [ideasList, objectsList, tagsList, seriesList, publishedVideosList] = await Promise.all([
-      window.api.ideas.list(),
-      window.api.objects.list(),
-      window.api.tags.list(),
-      window.api.series.list(),
-      window.api.channel.listVideos()
-    ])
+    const [ideasList, objectsList, tagsList, seriesList, publishedVideosList, settingsValue] =
+      await Promise.all([
+        window.api.ideas.list(),
+        window.api.objects.list(),
+        window.api.tags.list(),
+        window.api.series.list(),
+        window.api.channel.listVideos(),
+        window.api.settings.get()
+      ])
     setIdeas(ideasList)
     setObjects(objectsList)
     setTags(tagsList)
     setSeries(seriesList)
     setPublishedVideos(publishedVideosList)
+    setSettings(settingsValue)
     setLoading(false)
   }, [])
 
@@ -65,6 +83,7 @@ export function useIdeasData(): IdeasData {
     seriesById,
     publishedVideos,
     publishedVideosByIdeaId,
+    settings,
     loading,
     refresh
   }

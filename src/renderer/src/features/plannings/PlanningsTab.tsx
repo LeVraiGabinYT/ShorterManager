@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactElement } from 'react'
-import type { OwnedObject, Series, Tag, VideoIdea, VideoIdeaInput } from '@shared/types'
+import type { OwnedObject, Series, VideoIdea, VideoIdeaInput } from '@shared/types'
 import { useIdeasData } from '../../hooks/useIdeasData'
 import { sortIdeas } from '../../lib/ideaFilters'
 import { getEffectiveStatus } from '../../lib/ideaStatus'
@@ -17,8 +17,8 @@ interface PlanningColumnProps {
   emptyLabel: string
   ideas: VideoIdea[]
   objectsById: Map<number, OwnedObject>
-  tagsById: Map<number, Tag>
   seriesById: Map<number, Series>
+  ruleMissingObjectsPreparation: boolean
   onSelect: (idea: VideoIdea) => void
 }
 
@@ -27,8 +27,8 @@ function PlanningColumn({
   emptyLabel,
   ideas,
   objectsById,
-  tagsById,
   seriesById,
+  ruleMissingObjectsPreparation,
   onSelect
 }: PlanningColumnProps): ReactElement {
   return (
@@ -45,8 +45,8 @@ function PlanningColumn({
               key={idea.id}
               idea={idea}
               objectsById={objectsById}
-              tagsById={tagsById}
               seriesById={seriesById}
+              ruleMissingObjectsPreparation={ruleMissingObjectsPreparation}
               onClick={() => onSelect(idea)}
             />
           ))
@@ -62,11 +62,11 @@ export function PlanningsTab(): ReactElement {
     objects,
     objectsById,
     tags,
-    tagsById,
     series,
     seriesById,
     publishedVideos,
     publishedVideosByIdeaId,
+    settings,
     loading,
     refresh
   } = useIdeasData()
@@ -81,10 +81,14 @@ export function PlanningsTab(): ReactElement {
   const eligibleIdeas = useMemo(
     () =>
       ideas.filter((idea) => {
-        const { status } = getEffectiveStatus(idea, objectsById)
+        const { status } = getEffectiveStatus(
+          idea,
+          objectsById,
+          settings.ruleMissingObjectsPreparation
+        )
         return status !== 'scheduled' && status !== 'published'
       }),
-    [ideas, objectsById]
+    [ideas, objectsById, settings.ruleMissingObjectsPreparation]
   )
 
   const publicationPlanning = useMemo(
@@ -148,8 +152,8 @@ export function PlanningsTab(): ReactElement {
               emptyLabel="Aucun tournage à planifier."
               ideas={shootingPlanning}
               objectsById={objectsById}
-              tagsById={tagsById}
               seriesById={seriesById}
+              ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
               onSelect={setSelectedIdea}
             />
             <PlanningColumn
@@ -157,8 +161,8 @@ export function PlanningsTab(): ReactElement {
               emptyLabel="Aucune vidéo à planifier."
               ideas={publicationPlanning}
               objectsById={objectsById}
-              tagsById={tagsById}
               seriesById={seriesById}
+              ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
               onSelect={setSelectedIdea}
             />
           </div>
@@ -177,6 +181,7 @@ export function PlanningsTab(): ReactElement {
           onClose={() => setSelectedIdea(null)}
           onSave={handleUpdate}
           onDelete={handleDelete}
+          ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
           onTagsChanged={refresh}
           onSeriesChanged={refresh}
           onLinkVideo={handleLinkVideo}

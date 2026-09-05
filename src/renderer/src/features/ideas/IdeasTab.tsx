@@ -50,6 +50,7 @@ export function IdeasTab(): ReactElement {
     seriesById,
     publishedVideos,
     publishedVideosByIdeaId,
+    settings,
     loading,
     refresh
   } = useIdeasData()
@@ -70,8 +71,12 @@ export function IdeasTab(): ReactElement {
   }, [sort])
 
   const filteredIdeas = useMemo(
-    () => sortIdeas(filterIdeas(ideas, filters, objectsById), sort),
-    [ideas, filters, objectsById, sort]
+    () =>
+      sortIdeas(
+        filterIdeas(ideas, filters, objectsById, tagsById, settings.ruleMissingObjectsPreparation),
+        sort
+      ),
+    [ideas, filters, objectsById, tagsById, settings.ruleMissingObjectsPreparation, sort]
   )
   const unlinkedVideos = useMemo(
     () => publishedVideos.filter((v) => v.ideaId === null),
@@ -356,8 +361,8 @@ export function IdeasTab(): ReactElement {
                   key={idea.id}
                   idea={idea}
                   objectsById={objectsById}
-                  tagsById={tagsById}
                   seriesById={seriesById}
+                  ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
                   selected={selectedIds.has(idea.id)}
                   onToggleSelect={() => toggleSelect(idea.id)}
                   onClick={() => setEditingIdea(idea)}
@@ -379,6 +384,7 @@ export function IdeasTab(): ReactElement {
           unlinkedVideos={unlinkedVideos}
           onClose={() => setCreating(false)}
           onSave={handleCreate}
+          ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
           onTagsChanged={refresh}
           onSeriesChanged={refresh}
           onLinkVideo={() => {}}
@@ -398,6 +404,7 @@ export function IdeasTab(): ReactElement {
           onClose={() => setEditingIdea(null)}
           onSave={handleUpdate}
           onDelete={handleDelete}
+          ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
           onTagsChanged={refresh}
           onSeriesChanged={refresh}
           onLinkVideo={handleLinkVideo}

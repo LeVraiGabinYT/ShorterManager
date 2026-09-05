@@ -63,7 +63,8 @@ const api: ShorterManagerApi = {
     export: () => ipcRenderer.invoke('backup:export'),
     pickImportFile: () => ipcRenderer.invoke('backup:pickImportFile'),
     import: (filePath: string, mode: BackupMode) =>
-      ipcRenderer.invoke('backup:import', filePath, mode)
+      ipcRenderer.invoke('backup:import', filePath, mode),
+    wipeAll: () => ipcRenderer.invoke('backup:wipeAll')
   }
 }
 

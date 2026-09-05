@@ -125,16 +125,20 @@ export function removeIdea(id: number): void {
 }
 
 /** Used when linking an idea to a real published video: syncs status/date with reality. */
-export function markIdeaPublished(id: number, publishDate: string | null): VideoIdea {
+export function setIdeaLinkedStatus(
+  id: number,
+  status: VideoIdea['status'],
+  publishDate: string | null
+): VideoIdea {
   getDb()
     .prepare(
       `UPDATE ideas SET
-         status = 'published',
+         status = @status,
          publish_date = COALESCE(@publishDate, publish_date),
          updated_at = datetime('now')
        WHERE id = @id`
     )
-    .run({ id, publishDate })
+    .run({ id, status, publishDate })
   return getIdeaById(id)
 }
 

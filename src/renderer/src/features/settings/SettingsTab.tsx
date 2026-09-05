@@ -104,7 +104,48 @@ function formatImportSummary(result: BackupImportResult): string {
   return (
     `Fusion terminée : ${result.addedIdeas ?? 0} idée(s) ajoutée(s), ${result.skippedIdeas ?? 0} déjà existante(s) ignorée(s) (même titre), ` +
     `${result.addedTags ?? 0} tag(s), ${result.addedSeries ?? 0} série(s), ${result.addedObjects ?? 0} objet(s), ${result.addedVideos ?? 0} vidéo(s) ajoutée(s).` +
+    (result.relinkedVideos
+      ? ` ${result.relinkedVideos} vidéo(s) existante(s) reliée(s) à leur idée.`
+      : '') +
     (result.channelRestored ? ' Connexion chaîne restaurée.' : '')
+  )
+}
+
+function WipeConfirmModal({
+  onCancel,
+  onConfirm,
+  wiping
+}: {
+  onCancel: () => void
+  onConfirm: () => void
+  wiping: boolean
+}): ReactElement {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#15161a] p-5 shadow-2xl">
+        <h2 className="text-sm font-semibold text-gray-100">Supprimer toutes les données ?</h2>
+        <p className="mt-2 text-xs text-gray-400">
+          Idées, objets, tags, séries, vidéos et connexion à la chaîne seront définitivement
+          effacés. Cette action est irréversible — pense à exporter une sauvegarde avant si besoin.
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            disabled={wiping}
+            className="rounded-md px-3 py-1.5 text-sm text-gray-300 hover:bg-white/5 disabled:opacity-60"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={wiping}
+            className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {wiping ? 'Suppression...' : 'Tout supprimer'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -121,6 +162,11 @@ export function SettingsTab(): ReactElement {
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [importSucceeded, setImportSucceeded] = useState(false)
 
+  const [confirmingWipe, setConfirmingWipe] = useState(false)
+  const [wiping, setWiping] = useState(false)
+  const [wipeMessage, setWipeMessage] = useState<string | null>(null)
+  const [wipeSucceeded, setWipeSucceeded] = useState(false)
+
   useEffect(() => {
     window.api.app.getInfo().then(setAppInfo)
     window.api.settings.get().then((s) => {
@@ -133,6 +179,14 @@ export function SettingsTab(): ReactElement {
     const parsed = Math.min(50, Math.max(1, Math.round(Number(maxRecentVideosInput) || 25)))
     setMaxRecentVideosInput(String(parsed))
     const updated = await window.api.settings.update({ maxRecentVideos: parsed })
+    setSettings(updated)
+  }
+
+  async function handleToggleRule(
+    key: 'ruleAutoStatusOnLink' | 'ruleMissingObjectsPreparation',
+    value: boolean
+  ): Promise<void> {
+    const updated = await window.api.settings.update({ [key]: value })
     setSettings(updated)
   }
 
@@ -163,6 +217,19 @@ export function SettingsTab(): ReactElement {
     setPendingImportFile(null)
     setImportSucceeded(result.success)
     setImportMessage(formatImportSummary(result))
+  }
+
+  async function handleConfirmWipe(): Promise<void> {
+    setWiping(true)
+    const result = await window.api.backup.wipeAll()
+    setWiping(false)
+    setConfirmingWipe(false)
+    setWipeSucceeded(result.success)
+    setWipeMessage(
+      result.success
+        ? 'Toutes les données ont été supprimées.'
+        : (result.error ?? 'Échec de la suppression.')
+    )
   }
 
   return (
@@ -221,6 +288,52 @@ export function SettingsTab(): ReactElement {
         </section>
 
         <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+          <h2 className="text-sm font-medium text-gray-200">Règles</h2>
+          <p className="mt-1 text-xs text-gray-500">
+            Automatisations activées par défaut qui configurent les idées à ta place. Désactive-les
+            si tu préfères tout gérer manuellement.
+          </p>
+
+          {settings && (
+            <div className="mt-3 space-y-3">
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={settings.ruleAutoStatusOnLink}
+                  onChange={(e) => handleToggleRule('ruleAutoStatusOnLink', e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-white/20 bg-white/5 accent-blue-600"
+                />
+                <span>
+                  <span className="block text-gray-200">Statut automatique à la liaison</span>
+                  <span className="block text-xs text-gray-500">
+                    Lier une idée à une vraie vidéo la passe en « Publiée » — sauf si la vidéo date
+                    d’aujourd’hui avec 0 vue, auquel cas elle est plutôt marquée « Programmée ».
+                  </span>
+                </span>
+              </label>
+
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={settings.ruleMissingObjectsPreparation}
+                  onChange={(e) =>
+                    handleToggleRule('ruleMissingObjectsPreparation', e.target.checked)
+                  }
+                  className="mt-0.5 h-4 w-4 rounded border-white/20 bg-white/5 accent-blue-600"
+                />
+                <span>
+                  <span className="block text-gray-200">Préparation si objet manquant</span>
+                  <span className="block text-xs text-gray-500">
+                    Une idée avec un objet non acheté s’affiche automatiquement comme « Préparation
+                    » — impossible de filmer sans le matériel nécessaire.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
           <h2 className="text-sm font-medium text-gray-200">Sauvegarde des données</h2>
           <p className="mt-1 text-xs text-gray-500">
             Exporte ou restaure la totalité du tableau de bord : idées, objets, tags, séries, vidéos
@@ -271,6 +384,43 @@ export function SettingsTab(): ReactElement {
             </div>
           )}
         </section>
+
+        <section className="rounded-lg border border-red-500/30 bg-red-500/5 p-4">
+          <h2 className="text-sm font-medium text-red-300">Zone dangereuse</h2>
+          <p className="mt-1 text-xs text-gray-400">
+            Supprime définitivement toutes les données locales (idées, objets, tags, séries, vidéos,
+            connexion à la chaîne) — utile pour tester une restauration depuis une sauvegarde à
+            partir d’un état vide.
+          </p>
+          <button
+            onClick={() => setConfirmingWipe(true)}
+            className="mt-3 rounded-md border border-red-500/40 px-3 py-1.5 text-sm text-red-300 hover:bg-red-500/10"
+          >
+            Supprimer toutes les données
+          </button>
+
+          {wipeMessage && (
+            <div className="mt-3 space-y-2">
+              <p
+                className={`rounded-md border px-3 py-2 text-xs ${
+                  wipeSucceeded
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                    : 'border-red-500/40 bg-red-500/10 text-red-200'
+                }`}
+              >
+                {wipeMessage}
+              </p>
+              {wipeSucceeded && (
+                <button
+                  onClick={() => window.location.reload()}
+                  className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
+                >
+                  Recharger l’application
+                </button>
+              )}
+            </div>
+          )}
+        </section>
       </div>
 
       {pendingImportFile && (
@@ -279,6 +429,14 @@ export function SettingsTab(): ReactElement {
           importing={importing}
           onCancel={() => setPendingImportFile(null)}
           onConfirm={handleConfirmImport}
+        />
+      )}
+
+      {confirmingWipe && (
+        <WipeConfirmModal
+          wiping={wiping}
+          onCancel={() => setConfirmingWipe(false)}
+          onConfirm={handleConfirmWipe}
         />
       )}
     </div>

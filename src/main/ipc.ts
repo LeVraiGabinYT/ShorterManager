@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { getAppInfo } from './appInfo'
-import { exportBackup, importBackup, pickImportFile } from './backup'
+import { exportBackup, importBackup, pickImportFile, wipeAllAppData } from './backup'
 import { getChannelStatus } from './db/channel'
 import { createIdea, listIdeas, removeIdea, updateIdea } from './db/ideas'
 import { createObject, listObjects, removeObject, updateObject } from './db/objects'
@@ -96,4 +96,5 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('backup:import', (_event, filePath: string, mode: BackupMode) =>
     importBackup(filePath, mode)
   )
+  ipcMain.handle('backup:wipeAll', () => wipeAllAppData())
 }
