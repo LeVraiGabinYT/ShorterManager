@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { checkForUpdatesOnStartup } from './autoUpdate'
 import { registerIpcHandlers } from './ipc'
 
 function createWindow(): void {
@@ -52,6 +53,7 @@ app.whenReady().then(() => {
   })
 
   registerIpcHandlers()
+  checkForUpdatesOnStartup()
 
   createWindow()
 

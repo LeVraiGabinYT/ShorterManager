@@ -1,5 +1,11 @@
 import { useEffect, useState, type ReactElement } from 'react'
-import type { AppInfo, AppSettings, BackupImportResult, BackupMode } from '@shared/types'
+import type {
+  AppInfo,
+  AppSettings,
+  BackupImportResult,
+  BackupMode,
+  UpdateStatus
+} from '@shared/types'
 
 function ImportConfirmModal({
   fileName,
@@ -167,6 +173,8 @@ export function SettingsTab(): ReactElement {
   const [wipeMessage, setWipeMessage] = useState<string | null>(null)
   const [wipeSucceeded, setWipeSucceeded] = useState(false)
 
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' })
+
   useEffect(() => {
     window.api.app.getInfo().then(setAppInfo)
     window.api.settings.get().then((s) => {
@@ -174,6 +182,33 @@ export function SettingsTab(): ReactElement {
       setMaxRecentVideosInput(String(s.maxRecentVideos))
     })
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const poll = (): void => {
+      window.api.updates.getStatus().then((s) => {
+        if (!cancelled) setUpdateStatus(s)
+      })
+    }
+    poll()
+    const interval = setInterval(poll, 1500)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [])
+
+  async function handleCheckUpdates(): Promise<void> {
+    await window.api.updates.check()
+  }
+
+  async function handleDownloadUpdate(): Promise<void> {
+    await window.api.updates.download()
+  }
+
+  async function handleInstallUpdate(): Promise<void> {
+    await window.api.updates.installNow()
+  }
 
   async function handleSaveMaxRecentVideos(): Promise<void> {
     const parsed = Math.min(50, Math.max(1, Math.round(Number(maxRecentVideosInput) || 25)))
@@ -195,6 +230,7 @@ export function SettingsTab(): ReactElement {
     setExportMessage(null)
     const result = await window.api.backup.export()
     setExporting(false)
+    if (result.canceled) return
     setExportMessage(
       result.success ? `Sauvegarde créée : ${result.path}` : (result.error ?? 'Échec de l’export.')
     )
@@ -257,6 +293,53 @@ export function SettingsTab(): ReactElement {
               </div>
             </dl>
           )}
+        </section>
+
+        <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+          <h2 className="text-sm font-medium text-gray-200">Mises à jour</h2>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleCheckUpdates}
+              disabled={updateStatus.state === 'checking' || updateStatus.state === 'downloading'}
+              className="rounded-md border border-white/10 px-3 py-1.5 text-sm text-gray-300 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Vérifier les mises à jour
+            </button>
+
+            {updateStatus.state === 'available' && (
+              <button
+                onClick={handleDownloadUpdate}
+                className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
+              >
+                Télécharger la version {updateStatus.version}
+              </button>
+            )}
+
+            {updateStatus.state === 'downloaded' && (
+              <button
+                onClick={handleInstallUpdate}
+                className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500"
+              >
+                Redémarrer et installer ({updateStatus.version})
+              </button>
+            )}
+          </div>
+
+          <p className="mt-3 text-xs text-gray-400">
+            {updateStatus.state === 'idle' && 'Aucune vérification récente.'}
+            {updateStatus.state === 'checking' && 'Vérification en cours...'}
+            {updateStatus.state === 'not-available' && 'Tu as déjà la dernière version installée.'}
+            {updateStatus.state === 'available' &&
+              `Nouvelle version disponible : ${updateStatus.version}.`}
+            {updateStatus.state === 'downloading' &&
+              `Téléchargement en cours... ${updateStatus.percent}%`}
+            {updateStatus.state === 'downloaded' &&
+              `Version ${updateStatus.version} téléchargée, prête à installer.`}
+            {updateStatus.state === 'error' && (
+              <span className="text-red-300">{updateStatus.message}</span>
+            )}
+          </p>
         </section>
 
         <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">

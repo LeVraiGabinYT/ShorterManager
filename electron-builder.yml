@@ -2,6 +2,11 @@ appId: com.shortermanager.app
 productName: ShorterManager
 directories:
   buildResources: build
+  output: AppBuild
+publish:
+  provider: github
+  owner: LeVraiGabinYT
+  repo: ShorterManager
 files:
   - '!**/.vscode/*'
   - '!src/*'

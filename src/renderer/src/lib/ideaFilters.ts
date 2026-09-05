@@ -36,14 +36,12 @@ export const DEFAULT_IDEA_FILTERS: IdeaFiltersState = {
   publishDate: EMPTY_DATE_FILTER
 }
 
-// Statuses shown by the "En cours" quick filter — everything not yet scheduled or published.
-export const IN_PROGRESS_STATUSES: IdeaStatus[] = [
-  'idea',
-  'preparation',
-  'shooting',
-  'editing',
-  'ready'
-]
+// Statuses shown by the "En cours" quick filter — everything past the idea stage but not yet
+// scheduled or published.
+export const IN_PROGRESS_STATUSES: IdeaStatus[] = ['preparation', 'shooting', 'editing', 'ready']
+
+// Statuses shown by the "Idées" quick filter — only ideas not yet in preparation.
+export const IDEA_ONLY_STATUSES: IdeaStatus[] = ['idea']
 
 export function sameStatusSet(a: IdeaStatus[], b: IdeaStatus[]): boolean {
   return a.length === b.length && b.every((status) => a.includes(status))

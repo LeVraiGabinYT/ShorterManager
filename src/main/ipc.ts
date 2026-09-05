@@ -1,5 +1,11 @@
 import { ipcMain } from 'electron'
 import { getAppInfo } from './appInfo'
+import {
+  checkForUpdatesNow,
+  downloadUpdateNow,
+  getUpdateStatus,
+  installUpdateNow
+} from './autoUpdate'
 import { exportBackup, importBackup, pickImportFile, wipeAllAppData } from './backup'
 import { getChannelStatus } from './db/channel'
 import { createIdea, listIdeas, removeIdea, updateIdea } from './db/ideas'
@@ -97,4 +103,9 @@ export function registerIpcHandlers(): void {
     importBackup(filePath, mode)
   )
   ipcMain.handle('backup:wipeAll', () => wipeAllAppData())
+
+  ipcMain.handle('updates:check', () => checkForUpdatesNow())
+  ipcMain.handle('updates:download', () => downloadUpdateNow())
+  ipcMain.handle('updates:installNow', () => installUpdateNow())
+  ipcMain.handle('updates:getStatus', () => getUpdateStatus())
 }

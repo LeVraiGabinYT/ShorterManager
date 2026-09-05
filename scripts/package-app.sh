@@ -6,7 +6,7 @@
 #   ./scripts/package-app.sh mac      # macOS only
 #   ./scripts/package-app.sh win      # Windows only
 #
-# Output lands in dist/ at the repo root.
+# Output lands in AppBuild/ at the repo root.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -31,5 +31,5 @@ case "$TARGET" in
 esac
 
 echo ""
-echo "Fichiers générés dans dist/ :"
-ls -la dist/*.dmg dist/*.exe dist/mac*/*.app 2>/dev/null || true
+echo "Fichiers générés dans AppBuild/ :"
+ls -la AppBuild/*.dmg AppBuild/*.exe AppBuild/mac*/*.app 2>/dev/null || true

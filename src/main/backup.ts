@@ -105,26 +105,29 @@ function timestampedFileName(): string {
   return `ShorterManager-backup-${stamp}.json`
 }
 
-export function exportBackup(): BackupExportResult {
+export async function exportBackup(): Promise<BackupExportResult> {
   const data = buildBackupData()
   const json = JSON.stringify(data, null, 2)
-  const fileName = timestampedFileName()
 
-  const candidateDirs = [getExportDir(), app.getPath('documents'), app.getPath('userData')]
+  const result = await dialog.showSaveDialog({
+    title: 'Enregistrer la sauvegarde ShorterManager',
+    defaultPath: join(getExportDir(), timestampedFileName()),
+    filters: [{ name: 'Sauvegarde ShorterManager', extensions: ['json'] }]
+  })
+  if (result.canceled || !result.filePath) return { success: false, canceled: true }
 
-  for (const dir of candidateDirs) {
-    try {
-      if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-      const path = join(dir, fileName)
-      writeFileSync(path, json, 'utf-8')
-      return { success: true, path }
-    } catch {
-      // Try the next candidate directory (e.g. the executable's folder may not be writable).
-      continue
+  try {
+    const dir = dirname(result.filePath)
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    writeFileSync(result.filePath, json, 'utf-8')
+    return { success: true, path: result.filePath }
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Impossible d'écrire le fichier de sauvegarde."
     }
   }
-
-  return { success: false, error: "Impossible d'écrire le fichier de sauvegarde." }
 }
 
 export async function pickImportFile(): Promise<string | null> {

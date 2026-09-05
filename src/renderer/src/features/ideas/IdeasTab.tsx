@@ -5,6 +5,7 @@ import {
   DEFAULT_IDEA_FILTERS,
   DEFAULT_IDEA_SORT,
   filterIdeas,
+  IDEA_ONLY_STATUSES,
   IN_PROGRESS_STATUSES,
   sameStatusSet,
   sortIdeas,
@@ -191,11 +192,16 @@ export function IdeasTab(): ReactElement {
     setSort({ field: 'publishDate', direction: 'desc' })
   }
 
+  function handleShowIdeasOnly(): void {
+    setFilters((prev) => ({ ...prev, statuses: IDEA_ONLY_STATUSES }))
+  }
+
   function handleClearFilters(): void {
     setFilters(DEFAULT_IDEA_FILTERS)
   }
 
   const isInProgressActive = sameStatusSet(filters.statuses, IN_PROGRESS_STATUSES)
+  const isIdeasOnlyActive = sameStatusSet(filters.statuses, IDEA_ONLY_STATUSES)
 
   async function handleCleanupDuplicates(): Promise<void> {
     setCleaningUp(true)
@@ -267,6 +273,17 @@ export function IdeasTab(): ReactElement {
               }`}
             >
               En cours
+            </button>
+            <button
+              type="button"
+              onClick={handleShowIdeasOnly}
+              className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                isIdeasOnlyActive
+                  ? 'border-blue-500/50 bg-blue-500/10 text-blue-300'
+                  : 'border-white/10 text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              Idées
             </button>
             <button
               type="button"

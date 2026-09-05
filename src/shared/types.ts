@@ -118,6 +118,15 @@ export interface AppInfo {
   dbPath: string
 }
 
+export type UpdateStatus =
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'available'; version: string }
+  | { state: 'not-available' }
+  | { state: 'downloading'; percent: number }
+  | { state: 'downloaded'; version: string }
+  | { state: 'error'; message: string }
+
 export interface AppSettings {
   maxRecentVideos: number
   // "Règles" (Paramètres): default-on automations the user can turn off.
@@ -131,6 +140,7 @@ export interface BackupExportResult {
   success: boolean
   path?: string
   error?: string
+  canceled?: boolean
 }
 
 export interface BackupImportResult {
@@ -201,5 +211,11 @@ export interface ShorterManagerApi {
     pickImportFile: () => Promise<string | null>
     import: (filePath: string, mode: BackupMode) => Promise<BackupImportResult>
     wipeAll: () => Promise<{ success: boolean; error?: string }>
+  }
+  updates: {
+    check: () => Promise<void>
+    download: () => Promise<void>
+    installNow: () => Promise<void>
+    getStatus: () => Promise<UpdateStatus>
   }
 }
