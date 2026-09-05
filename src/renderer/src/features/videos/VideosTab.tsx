@@ -1,9 +1,11 @@
 import { useState, type ReactElement } from 'react'
 import { ChannelTab } from '../channel/ChannelTab'
 import { IdeasTab } from '../ideas/IdeasTab'
+import { PlanningsTab } from '../plannings/PlanningsTab'
 import { SeriesTab } from '../series/SeriesTab'
 
 const SUB_TABS = [
+  { id: 'plannings', label: 'Plannings' },
   { id: 'ideas', label: 'Idées' },
   { id: 'series', label: 'Séries' },
   { id: 'channel', label: 'Chaîne YouTube' }
@@ -12,7 +14,7 @@ const SUB_TABS = [
 type SubTabId = (typeof SUB_TABS)[number]['id']
 
 export function VideosTab(): ReactElement {
-  const [activeSubTab, setActiveSubTab] = useState<SubTabId>('ideas')
+  const [activeSubTab, setActiveSubTab] = useState<SubTabId>('plannings')
 
   return (
     <div className="flex h-full flex-col">
@@ -33,6 +35,7 @@ export function VideosTab(): ReactElement {
       </nav>
 
       <div className="min-h-0 flex-1 overflow-hidden">
+        {activeSubTab === 'plannings' && <PlanningsTab />}
         {activeSubTab === 'ideas' && <IdeasTab />}
         {activeSubTab === 'series' && <SeriesTab />}
         {activeSubTab === 'channel' && <ChannelTab />}
