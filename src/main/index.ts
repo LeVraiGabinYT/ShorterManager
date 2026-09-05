@@ -7,6 +7,7 @@ import { registerIpcHandlers } from './ipc'
 function createWindow(): void {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
+    title: 'ShorterManager',
     width: 900,
     height: 670,
     show: false,
