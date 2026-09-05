@@ -8,9 +8,8 @@ import {
   upsertPublishedVideo
 } from '../db/publishedVideos'
 import { getValidAccessToken } from './oauth'
+import { loadSettings } from '../settings'
 import type { PublishedVideo, VideoIdea } from '../../shared/types'
-
-const MAX_RECENT_VIDEOS = 25
 
 async function youtubeFetch<T>(url: string): Promise<T> {
   const token = await getValidAccessToken()
@@ -42,8 +41,9 @@ async function getUploadsPlaylistId(): Promise<string> {
 }
 
 async function getRecentPlaylistItems(playlistId: string): Promise<PlaylistItem[]> {
+  const maxResults = loadSettings().maxRecentVideos
   const data = await youtubeFetch<{ items?: PlaylistItem[] }>(
-    `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=${MAX_RECENT_VIDEOS}&playlistId=${playlistId}`
+    `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=${maxResults}&playlistId=${playlistId}`
   )
   return data.items ?? []
 }
@@ -152,8 +152,8 @@ interface SearchResultItem {
 
 /**
  * Searches the whole channel (not just the most recently cached videos) via the Data API's
- * search endpoint — needed because refreshRecentVideos() only ever caches the latest
- * MAX_RECENT_VIDEOS uploads, so older videos need an explicit, on-demand lookup.
+ * search endpoint — needed because refreshRecentVideos() only ever caches the configured
+ * maxRecentVideos setting's worth of uploads, so older videos need an explicit lookup.
  */
 export async function searchChannelVideos(query: string): Promise<PublishedVideo[]> {
   const trimmed = query.trim()
@@ -192,14 +192,18 @@ export function createIdeaFromVideo(youtubeVideoId: string): VideoIdea {
     publishDate: video.publishedAt ? video.publishedAt.slice(0, 10) : null,
     shootDate: null,
     objectIds: [],
-    tagIds: []
+    // Carry over any tags already assigned directly to the video (e.g. from the detail
+    // modal) — otherwise they'd be silently lost once idea_tags becomes the source of
+    // truth for this now-linked video's tags. Mirrors the merge linkVideoToIdea() does.
+    tagIds: video.tagIds,
+    seriesId: null
   })
 
   dbLinkVideoToIdea(youtubeVideoId, idea.id)
   return getIdeaById(idea.id)
 }
 
-export function linkVideoToIdea(youtubeVideoId: string, ideaId: number): void {
+export function linkVideoToIdea(youtubeVideoId: string, ideaId: number): VideoIdea {
   const video = listPublishedVideos().find((v) => v.youtubeVideoId === youtubeVideoId)
 
   // A video's own (pre-link) tags would otherwise become invisible once idea_tags takes over as
@@ -214,7 +218,7 @@ export function linkVideoToIdea(youtubeVideoId: string, ideaId: number): void {
   }
 
   dbLinkVideoToIdea(youtubeVideoId, ideaId)
-  markIdeaPublished(ideaId, video?.publishedAt ? video.publishedAt.slice(0, 10) : null)
+  return markIdeaPublished(ideaId, video?.publishedAt ? video.publishedAt.slice(0, 10) : null)
 }
 
 export function unlinkVideo(youtubeVideoId: string): void {

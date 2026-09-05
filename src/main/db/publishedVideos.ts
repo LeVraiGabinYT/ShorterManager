@@ -42,6 +42,12 @@ function getOwnTagIds(publishedVideoId: number): number[] {
   return rows.map((r) => r.tag_id)
 }
 
+function getIdeaEmoji(ideaId: number): string | null {
+  const row = getDb().prepare('SELECT emoji FROM ideas WHERE id = ?').get(ideaId) as
+    { emoji: string | null } | undefined
+  return row?.emoji ?? null
+}
+
 function toPublishedVideo(row: PublishedVideoRow): PublishedVideo {
   return {
     id: row.id,
@@ -59,7 +65,8 @@ function toPublishedVideo(row: PublishedVideoRow): PublishedVideo {
     statsFetchedAt: row.stats_fetched_at,
     // A linked video's tags are the linked idea's tags (single source of truth once linked);
     // an unlinked video keeps its own directly-assigned tags.
-    tagIds: row.idea_id ? getIdeaTagIds(row.idea_id) : getOwnTagIds(row.id)
+    tagIds: row.idea_id ? getIdeaTagIds(row.idea_id) : getOwnTagIds(row.id),
+    emoji: row.idea_id ? getIdeaEmoji(row.idea_id) : null
   }
 }
 

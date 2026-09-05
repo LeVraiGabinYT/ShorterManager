@@ -34,6 +34,12 @@ export interface Tag {
 
 export type TagInput = Omit<Tag, 'id' | 'createdAt'>
 
+export interface Series {
+  id: number
+  name: string
+  createdAt: string
+}
+
 export interface OwnedObject {
   id: number
   name: string
@@ -60,6 +66,7 @@ export interface VideoIdea {
   updatedAt: string
   objectIds: number[]
   tagIds: number[]
+  seriesId: number | null
 }
 
 export type VideoIdeaInput = Omit<
@@ -89,6 +96,8 @@ export interface PublishedVideo {
   averageViewPercentage: number | null
   statsFetchedAt: string | null
   tagIds: number[]
+  // Bridged from the linked idea's emoji (null when unlinked) — see toPublishedVideo().
+  emoji: string | null
 }
 
 export interface ChannelStatus {
@@ -103,11 +112,35 @@ export interface ChannelConnectResult {
   status: ChannelStatus
 }
 
-export interface AnalysisGroup {
-  id: number
-  name: string
-  createdAt: string
-  videoIds: string[]
+export interface AppInfo {
+  version: string
+  userDataPath: string
+  dbPath: string
+}
+
+export interface AppSettings {
+  maxRecentVideos: number
+}
+
+export type BackupMode = 'merge' | 'replace'
+
+export interface BackupExportResult {
+  success: boolean
+  path?: string
+  error?: string
+}
+
+export interface BackupImportResult {
+  success: boolean
+  error?: string
+  mode?: BackupMode
+  addedIdeas?: number
+  skippedIdeas?: number
+  addedObjects?: number
+  addedTags?: number
+  addedSeries?: number
+  addedVideos?: number
+  channelRestored?: boolean
 }
 
 export interface ShorterManagerApi {
@@ -116,6 +149,11 @@ export interface ShorterManagerApi {
     create: (input: VideoIdeaInput) => Promise<VideoIdea>
     update: (id: number, input: VideoIdeaInput) => Promise<VideoIdea>
     remove: (id: number) => Promise<void>
+    mergeDuplicates: () => Promise<{
+      mergedGroups: number
+      removedIdeas: number
+      backfilledShootDates: number
+    }>
   }
   objects: {
     list: () => Promise<OwnedObject[]>
@@ -136,17 +174,27 @@ export interface ShorterManagerApi {
     listVideos: () => Promise<PublishedVideo[]>
     refreshVideos: () => Promise<{ videos: PublishedVideo[]; error?: string }>
     createIdeaFromVideo: (youtubeVideoId: string) => Promise<VideoIdea>
-    linkVideoToIdea: (youtubeVideoId: string, ideaId: number) => Promise<void>
+    linkVideoToIdea: (youtubeVideoId: string, ideaId: number) => Promise<VideoIdea>
     unlinkVideo: (youtubeVideoId: string) => Promise<void>
     setVideoTags: (youtubeVideoId: string, tagIds: number[]) => Promise<void>
     searchVideos: (query: string) => Promise<{ videos: PublishedVideo[]; error?: string }>
   }
-  analysisGroups: {
-    list: () => Promise<AnalysisGroup[]>
-    create: (name: string) => Promise<AnalysisGroup>
-    rename: (id: number, name: string) => Promise<AnalysisGroup>
+  series: {
+    list: () => Promise<Series[]>
+    create: (name: string) => Promise<Series>
+    rename: (id: number, name: string) => Promise<Series>
     remove: (id: number) => Promise<void>
-    addVideos: (id: number, youtubeVideoIds: string[]) => Promise<AnalysisGroup>
-    removeVideo: (id: number, youtubeVideoId: string) => Promise<AnalysisGroup>
+  }
+  app: {
+    getInfo: () => Promise<AppInfo>
+  }
+  settings: {
+    get: () => Promise<AppSettings>
+    update: (patch: Partial<AppSettings>) => Promise<AppSettings>
+  }
+  backup: {
+    export: () => Promise<BackupExportResult>
+    pickImportFile: () => Promise<string | null>
+    import: (filePath: string, mode: BackupMode) => Promise<BackupImportResult>
   }
 }

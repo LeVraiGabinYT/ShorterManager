@@ -78,6 +78,13 @@ function migrate(database: Database.Database): void {
       PRIMARY KEY (published_video_id, tag_id)
     );
 
+    -- An idea belongs to at most one série (nullable FK on ideas, see ensureColumn below).
+    CREATE TABLE IF NOT EXISTS series (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     -- Réservé pour la future intégration OAuth Google / YouTube Data API.
     CREATE TABLE IF NOT EXISTS channel_connection (
       id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -104,18 +111,6 @@ function migrate(database: Database.Database): void {
       stats_fetched_at TEXT
     );
 
-    -- Groupes de vidéos publiées, curés manuellement, pour comparaison dans l'onglet Analyse.
-    CREATE TABLE IF NOT EXISTS analysis_groups (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS analysis_group_videos (
-      group_id INTEGER NOT NULL REFERENCES analysis_groups(id) ON DELETE CASCADE,
-      published_video_id INTEGER NOT NULL REFERENCES published_videos(id) ON DELETE CASCADE,
-      PRIMARY KEY (group_id, published_video_id)
-    );
   `)
 
   ensureColumn(database, 'objects', 'purchased', 'INTEGER NOT NULL DEFAULT 0')
@@ -123,4 +118,12 @@ function migrate(database: Database.Database): void {
   ensureColumn(database, 'published_videos', 'thumbnail_url', 'TEXT')
   ensureColumn(database, 'published_videos', 'average_view_percentage', 'REAL')
   ensureColumn(database, 'published_videos', 'description', 'TEXT')
+  ensureColumn(database, 'ideas', 'series_id', 'INTEGER REFERENCES series(id) ON DELETE SET NULL')
+
+  // The "analysis groups" feature (named, manually-curated video sets for comparison) was
+  // replaced by the unified Analyse tab's ad-hoc dataset builder — drop its now-unused tables.
+  database.exec(`
+    DROP TABLE IF EXISTS analysis_group_videos;
+    DROP TABLE IF EXISTS analysis_groups;
+  `)
 }

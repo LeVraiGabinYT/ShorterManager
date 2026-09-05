@@ -1,13 +1,21 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { OwnedObjectInput, ShorterManagerApi, TagInput, VideoIdeaInput } from '../shared/types'
+import type {
+  AppSettings,
+  BackupMode,
+  OwnedObjectInput,
+  ShorterManagerApi,
+  TagInput,
+  VideoIdeaInput
+} from '../shared/types'
 
 const api: ShorterManagerApi = {
   ideas: {
     list: () => ipcRenderer.invoke('ideas:list'),
     create: (input: VideoIdeaInput) => ipcRenderer.invoke('ideas:create', input),
     update: (id: number, input: VideoIdeaInput) => ipcRenderer.invoke('ideas:update', id, input),
-    remove: (id: number) => ipcRenderer.invoke('ideas:remove', id)
+    remove: (id: number) => ipcRenderer.invoke('ideas:remove', id),
+    mergeDuplicates: () => ipcRenderer.invoke('ideas:mergeDuplicates')
   },
   objects: {
     list: () => ipcRenderer.invoke('objects:list'),
@@ -38,15 +46,24 @@ const api: ShorterManagerApi = {
       ipcRenderer.invoke('channel:setVideoTags', youtubeVideoId, tagIds),
     searchVideos: (query: string) => ipcRenderer.invoke('channel:searchVideos', query)
   },
-  analysisGroups: {
-    list: () => ipcRenderer.invoke('analysisGroups:list'),
-    create: (name: string) => ipcRenderer.invoke('analysisGroups:create', name),
-    rename: (id: number, name: string) => ipcRenderer.invoke('analysisGroups:rename', id, name),
-    remove: (id: number) => ipcRenderer.invoke('analysisGroups:remove', id),
-    addVideos: (id: number, youtubeVideoIds: string[]) =>
-      ipcRenderer.invoke('analysisGroups:addVideos', id, youtubeVideoIds),
-    removeVideo: (id: number, youtubeVideoId: string) =>
-      ipcRenderer.invoke('analysisGroups:removeVideo', id, youtubeVideoId)
+  series: {
+    list: () => ipcRenderer.invoke('series:list'),
+    create: (name: string) => ipcRenderer.invoke('series:create', name),
+    rename: (id: number, name: string) => ipcRenderer.invoke('series:rename', id, name),
+    remove: (id: number) => ipcRenderer.invoke('series:remove', id)
+  },
+  app: {
+    getInfo: () => ipcRenderer.invoke('app:getInfo')
+  },
+  settings: {
+    get: () => ipcRenderer.invoke('settings:get'),
+    update: (patch: Partial<AppSettings>) => ipcRenderer.invoke('settings:update', patch)
+  },
+  backup: {
+    export: () => ipcRenderer.invoke('backup:export'),
+    pickImportFile: () => ipcRenderer.invoke('backup:pickImportFile'),
+    import: (filePath: string, mode: BackupMode) =>
+      ipcRenderer.invoke('backup:import', filePath, mode)
   }
 }
 

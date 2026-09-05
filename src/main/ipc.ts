@@ -1,17 +1,14 @@
 import { ipcMain } from 'electron'
-import {
-  addVideosToGroup,
-  createGroup,
-  listGroups,
-  removeGroup,
-  removeVideoFromGroup,
-  renameGroup
-} from './db/analysisGroups'
+import { getAppInfo } from './appInfo'
+import { exportBackup, importBackup, pickImportFile } from './backup'
 import { getChannelStatus } from './db/channel'
 import { createIdea, listIdeas, removeIdea, updateIdea } from './db/ideas'
 import { createObject, listObjects, removeObject, updateObject } from './db/objects'
 import { listPublishedVideos } from './db/publishedVideos'
+import { createSeries, listSeries, removeSeries, renameSeries } from './db/series'
 import { createTag, listTags, removeTag, updateTag } from './db/tags'
+import { mergeDuplicateIdeas } from './dedupe'
+import { loadSettings, updateSettings } from './settings'
 import { connectChannel, disconnectChannel } from './youtube/oauth'
 import {
   createIdeaFromVideo,
@@ -21,7 +18,13 @@ import {
   setVideoTags,
   unlinkVideo
 } from './youtube/videos'
-import type { OwnedObjectInput, TagInput, VideoIdeaInput } from '../shared/types'
+import type {
+  AppSettings,
+  BackupMode,
+  OwnedObjectInput,
+  TagInput,
+  VideoIdeaInput
+} from '../shared/types'
 
 export function registerIpcHandlers(): void {
   ipcMain.handle('ideas:list', () => listIdeas())
@@ -30,6 +33,7 @@ export function registerIpcHandlers(): void {
     updateIdea(id, input)
   )
   ipcMain.handle('ideas:remove', (_event, id: number) => removeIdea(id))
+  ipcMain.handle('ideas:mergeDuplicates', () => mergeDuplicateIdeas())
 
   ipcMain.handle('objects:list', () => listObjects())
   ipcMain.handle('objects:create', (_event, input: OwnedObjectInput) => createObject(input))
@@ -77,16 +81,19 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  ipcMain.handle('analysisGroups:list', () => listGroups())
-  ipcMain.handle('analysisGroups:create', (_event, name: string) => createGroup(name))
-  ipcMain.handle('analysisGroups:rename', (_event, id: number, name: string) =>
-    renameGroup(id, name)
-  )
-  ipcMain.handle('analysisGroups:remove', (_event, id: number) => removeGroup(id))
-  ipcMain.handle('analysisGroups:addVideos', (_event, id: number, youtubeVideoIds: string[]) =>
-    addVideosToGroup(id, youtubeVideoIds)
-  )
-  ipcMain.handle('analysisGroups:removeVideo', (_event, id: number, youtubeVideoId: string) =>
-    removeVideoFromGroup(id, youtubeVideoId)
+  ipcMain.handle('series:list', () => listSeries())
+  ipcMain.handle('series:create', (_event, name: string) => createSeries(name))
+  ipcMain.handle('series:rename', (_event, id: number, name: string) => renameSeries(id, name))
+  ipcMain.handle('series:remove', (_event, id: number) => removeSeries(id))
+
+  ipcMain.handle('app:getInfo', () => getAppInfo())
+
+  ipcMain.handle('settings:get', () => loadSettings())
+  ipcMain.handle('settings:update', (_event, patch: Partial<AppSettings>) => updateSettings(patch))
+
+  ipcMain.handle('backup:export', () => exportBackup())
+  ipcMain.handle('backup:pickImportFile', () => pickImportFile())
+  ipcMain.handle('backup:import', (_event, filePath: string, mode: BackupMode) =>
+    importBackup(filePath, mode)
   )
 }

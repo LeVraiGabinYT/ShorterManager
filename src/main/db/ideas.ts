@@ -11,6 +11,7 @@ interface IdeaRow {
   shoot_date: string | null
   created_at: string
   updated_at: string
+  series_id: number | null
 }
 
 function getObjectIds(ideaId: number): number[] {
@@ -39,7 +40,8 @@ function toVideoIdea(row: IdeaRow): VideoIdea {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     objectIds: getObjectIds(row.id),
-    tagIds: getTagIds(row.id)
+    tagIds: getTagIds(row.id),
+    seriesId: row.series_id
   }
 }
 
@@ -70,8 +72,8 @@ export function createIdea(input: VideoIdeaInput): VideoIdea {
   const db = getDb()
   const result = db
     .prepare(
-      `INSERT INTO ideas (title, description, emoji, status, publish_date, shoot_date)
-       VALUES (@title, @description, @emoji, @status, @publishDate, @shootDate)`
+      `INSERT INTO ideas (title, description, emoji, status, publish_date, shoot_date, series_id)
+       VALUES (@title, @description, @emoji, @status, @publishDate, @shootDate, @seriesId)`
     )
     .run({
       title: input.title,
@@ -79,7 +81,8 @@ export function createIdea(input: VideoIdeaInput): VideoIdea {
       emoji: input.emoji,
       status: input.status,
       publishDate: input.publishDate,
-      shootDate: input.shootDate
+      shootDate: input.shootDate,
+      seriesId: input.seriesId
     })
 
   const ideaId = result.lastInsertRowid as number
@@ -98,6 +101,7 @@ export function updateIdea(id: number, input: VideoIdeaInput): VideoIdea {
        status = @status,
        publish_date = @publishDate,
        shoot_date = @shootDate,
+       series_id = @seriesId,
        updated_at = datetime('now')
      WHERE id = @id`
   ).run({
@@ -107,7 +111,8 @@ export function updateIdea(id: number, input: VideoIdeaInput): VideoIdea {
     emoji: input.emoji,
     status: input.status,
     publishDate: input.publishDate,
-    shootDate: input.shootDate
+    shootDate: input.shootDate,
+    seriesId: input.seriesId
   })
 
   setIdeaObjects(id, input.objectIds)
