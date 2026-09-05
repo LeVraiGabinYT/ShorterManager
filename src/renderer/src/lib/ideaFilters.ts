@@ -20,6 +20,7 @@ export interface IdeaFiltersState {
   tagIds: number[]
   tagMode: TagFilterMode
   objectIds: number[]
+  seriesIds: number[]
   shootDate: DateFilter
   publishDate: DateFilter
 }
@@ -30,16 +31,31 @@ export const DEFAULT_IDEA_FILTERS: IdeaFiltersState = {
   tagIds: [],
   tagMode: 'any',
   objectIds: [],
+  seriesIds: [],
   shootDate: EMPTY_DATE_FILTER,
   publishDate: EMPTY_DATE_FILTER
+}
+
+// Statuses shown by the "En cours" quick filter — everything not yet scheduled or published.
+export const IN_PROGRESS_STATUSES: IdeaStatus[] = [
+  'idea',
+  'preparation',
+  'shooting',
+  'editing',
+  'ready'
+]
+
+export function sameStatusSet(a: IdeaStatus[], b: IdeaStatus[]): boolean {
+  return a.length === b.length && b.every((status) => a.includes(status))
 }
 
 export function isFiltersActive(filters: IdeaFiltersState): boolean {
   return (
     filters.keyword.trim() !== '' ||
-    filters.statuses.length > 0 ||
+    !sameStatusSet(filters.statuses, DEFAULT_IDEA_FILTERS.statuses) ||
     filters.tagIds.length > 0 ||
     filters.objectIds.length > 0 ||
+    filters.seriesIds.length > 0 ||
     filters.shootDate.mode !== 'any' ||
     filters.publishDate.mode !== 'any'
   )
@@ -57,6 +73,32 @@ function matchesDateFilter(value: string | null, filter: DateFilter): boolean {
   if (filter.from && date < filter.from) return false
   if (filter.to && date > filter.to) return false
   return true
+}
+
+export type IdeaSortField = 'default' | 'shootDate' | 'publishDate'
+export type SortDirection = 'asc' | 'desc'
+
+export interface IdeaSortState {
+  field: IdeaSortField
+  direction: SortDirection
+}
+
+export const DEFAULT_IDEA_SORT: IdeaSortState = { field: 'publishDate', direction: 'desc' }
+
+export function sortIdeas(ideas: VideoIdea[], sort: IdeaSortState): VideoIdea[] {
+  if (sort.field === 'default') return ideas
+
+  const field = sort.field
+  const sign = sort.direction === 'asc' ? 1 : -1
+
+  return [...ideas].sort((a, b) => {
+    const aValue = a[field]
+    const bValue = b[field]
+    if (aValue === null && bValue === null) return 0
+    if (aValue === null) return 1
+    if (bValue === null) return -1
+    return aValue < bValue ? -sign : aValue > bValue ? sign : 0
+  })
 }
 
 export function filterIdeas(
@@ -89,6 +131,10 @@ export function filterIdeas(
     if (filters.objectIds.length > 0) {
       const hasAny = filters.objectIds.some((id) => idea.objectIds.includes(id))
       if (!hasAny) return false
+    }
+
+    if (filters.seriesIds.length > 0) {
+      if (idea.seriesId === null || !filters.seriesIds.includes(idea.seriesId)) return false
     }
 
     if (!matchesDateFilter(idea.shootDate, filters.shootDate)) return false

@@ -1,8 +1,9 @@
 import { useMemo, useState, type ReactElement } from 'react'
-import type { VideoIdea, VideoIdeaInput } from '@shared/types'
+import type { OwnedObject, Series, Tag, VideoIdea, VideoIdeaInput } from '@shared/types'
 import { useIdeasData } from '../../hooks/useIdeasData'
 import { getEffectiveStatus } from '../../lib/ideaStatus'
 import { IdeaFormModal } from '../ideas/IdeaFormModal'
+import { IdeaListRow } from '../ideas/IdeaListRow'
 
 function isToday(dateStr: string | null): boolean {
   if (!dateStr) return false
@@ -35,6 +36,9 @@ interface IdeaListSectionProps {
   title: string
   emptyLabel: string
   ideas: VideoIdea[]
+  objectsById: Map<number, OwnedObject>
+  tagsById: Map<number, Tag>
+  seriesById: Map<number, Series>
   onSelect: (idea: VideoIdea) => void
 }
 
@@ -42,27 +46,31 @@ function IdeaListSection({
   title,
   emptyLabel,
   ideas,
+  objectsById,
+  tagsById,
+  seriesById,
   onSelect
 }: IdeaListSectionProps): ReactElement {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-      <h2 className="text-sm font-medium text-gray-200">{title}</h2>
+    <div className="rounded-lg border border-white/10 bg-white/[0.03]">
+      <h2 className="px-4 pt-3 pb-2 text-sm font-medium text-gray-200">
+        {title} ({ideas.length})
+      </h2>
       {ideas.length === 0 ? (
-        <p className="mt-2 text-sm text-gray-500">{emptyLabel}</p>
+        <p className="px-4 pb-4 text-sm text-gray-500">{emptyLabel}</p>
       ) : (
-        <ul className="mt-2 space-y-1.5">
+        <div className="border-t border-white/10">
           {ideas.map((idea) => (
-            <li key={idea.id}>
-              <button
-                onClick={() => onSelect(idea)}
-                className="w-full rounded-md px-2 py-1.5 text-left text-sm text-gray-200 hover:bg-white/5"
-              >
-                {idea.emoji && <span className="mr-1.5">{idea.emoji}</span>}
-                {idea.title}
-              </button>
-            </li>
+            <IdeaListRow
+              key={idea.id}
+              idea={idea}
+              objectsById={objectsById}
+              tagsById={tagsById}
+              seriesById={seriesById}
+              onClick={() => onSelect(idea)}
+            />
           ))}
-        </ul>
+        </div>
       )}
     </div>
   )
@@ -74,6 +82,9 @@ export function OverviewTab(): ReactElement {
     objects,
     objectsById,
     tags,
+    tagsById,
+    series,
+    seriesById,
     publishedVideos,
     publishedVideosByIdeaId,
     loading,
@@ -96,8 +107,10 @@ export function OverviewTab(): ReactElement {
   const editingCount = effective.filter((e) => e.status === 'editing').length
   const shootingCount = effective.filter((e) => e.status === 'shooting').length
 
+  const editingIdeas = effective.filter((e) => e.status === 'editing').map((e) => e.idea)
   const shootingToday = ideas.filter((idea) => isToday(idea.shootDate))
-  const publishingToday = ideas.filter((idea) => isToday(idea.publishDate))
+  const scheduledIdeas = effective.filter((e) => e.status === 'scheduled').map((e) => e.idea)
+  const readyIdeas = effective.filter((e) => e.status === 'ready').map((e) => e.idea)
 
   async function handleUpdate(input: VideoIdeaInput): Promise<void> {
     if (!selectedIdea) return
@@ -147,17 +160,41 @@ export function OverviewTab(): ReactElement {
               <StatCard label="À filmer" value={shootingCount} accent="text-amber-400" />
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <IdeaListSection
-                title="Tournages aujourd’hui"
-                emptyLabel="Aucun tournage prévu aujourd’hui."
-                ideas={shootingToday}
+                title="Montage à faire"
+                emptyLabel="Aucune vidéo à monter."
+                ideas={editingIdeas}
+                objectsById={objectsById}
+                tagsById={tagsById}
+                seriesById={seriesById}
                 onSelect={setSelectedIdea}
               />
               <IdeaListSection
-                title="Publication aujourd’hui"
-                emptyLabel="Aucune publication prévue aujourd’hui."
-                ideas={publishingToday}
+                title="Tournage aujourd’hui"
+                emptyLabel="Aucun tournage prévu aujourd’hui."
+                ideas={shootingToday}
+                objectsById={objectsById}
+                tagsById={tagsById}
+                seriesById={seriesById}
+                onSelect={setSelectedIdea}
+              />
+              <IdeaListSection
+                title="Vidéos programmées"
+                emptyLabel="Aucune vidéo programmée."
+                ideas={scheduledIdeas}
+                objectsById={objectsById}
+                tagsById={tagsById}
+                seriesById={seriesById}
+                onSelect={setSelectedIdea}
+              />
+              <IdeaListSection
+                title="Vidéos terminées"
+                emptyLabel="Aucune vidéo prête."
+                ideas={readyIdeas}
+                objectsById={objectsById}
+                tagsById={tagsById}
+                seriesById={seriesById}
                 onSelect={setSelectedIdea}
               />
             </div>
@@ -170,12 +207,15 @@ export function OverviewTab(): ReactElement {
           idea={selectedIdea}
           objects={objects}
           tags={tags}
+          series={series}
+          existingIdeas={ideas}
           linkedVideo={publishedVideosByIdeaId.get(selectedIdea.id) ?? null}
           unlinkedVideos={unlinkedVideos}
           onClose={() => setSelectedIdea(null)}
           onSave={handleUpdate}
           onDelete={handleDelete}
           onTagsChanged={refresh}
+          onSeriesChanged={refresh}
           onLinkVideo={handleLinkVideo}
           onUnlinkVideo={handleUnlinkVideo}
         />

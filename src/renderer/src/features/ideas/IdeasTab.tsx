@@ -1,22 +1,41 @@
-import { useMemo, useState, type ReactElement } from 'react'
+import { useEffect, useMemo, useState, type ReactElement } from 'react'
 import type { IdeaStatus, VideoIdea, VideoIdeaInput } from '@shared/types'
 import { useIdeasData } from '../../hooks/useIdeasData'
-import { DEFAULT_IDEA_FILTERS, filterIdeas, type IdeaFiltersState } from '../../lib/ideaFilters'
+import {
+  DEFAULT_IDEA_FILTERS,
+  DEFAULT_IDEA_SORT,
+  filterIdeas,
+  IN_PROGRESS_STATUSES,
+  sameStatusSet,
+  sortIdeas,
+  type IdeaFiltersState,
+  type IdeaSortField,
+  type IdeaSortState
+} from '../../lib/ideaFilters'
+import { toIdeaInput } from '../../lib/ideaInput'
 import { BulkActionsBar } from './BulkActionsBar'
-import { IdeaCard } from './IdeaCard'
 import { IdeaFilters } from './IdeaFilters'
 import { IdeaFormModal } from './IdeaFormModal'
+import { IdeaListRow } from './IdeaListRow'
 
-function toIdeaInput(idea: VideoIdea): VideoIdeaInput {
-  return {
-    title: idea.title,
-    emoji: idea.emoji,
-    description: idea.description,
-    status: idea.status,
-    publishDate: idea.publishDate,
-    shootDate: idea.shootDate,
-    objectIds: idea.objectIds,
-    tagIds: idea.tagIds
+const FILTERS_STORAGE_KEY = 'ideasTab.filters'
+const SORT_STORAGE_KEY = 'ideasTab.sort'
+
+function loadStoredFilters(): IdeaFiltersState {
+  try {
+    const raw = localStorage.getItem(FILTERS_STORAGE_KEY)
+    return raw ? { ...DEFAULT_IDEA_FILTERS, ...JSON.parse(raw) } : DEFAULT_IDEA_FILTERS
+  } catch {
+    return DEFAULT_IDEA_FILTERS
+  }
+}
+
+function loadStoredSort(): IdeaSortState {
+  try {
+    const raw = localStorage.getItem(SORT_STORAGE_KEY)
+    return raw ? { ...DEFAULT_IDEA_SORT, ...JSON.parse(raw) } : DEFAULT_IDEA_SORT
+  } catch {
+    return DEFAULT_IDEA_SORT
   }
 }
 
@@ -27,6 +46,8 @@ export function IdeasTab(): ReactElement {
     objectsById,
     tags,
     tagsById,
+    series,
+    seriesById,
     publishedVideos,
     publishedVideosByIdeaId,
     loading,
@@ -34,12 +55,23 @@ export function IdeasTab(): ReactElement {
   } = useIdeasData()
   const [editingIdea, setEditingIdea] = useState<VideoIdea | null>(null)
   const [creating, setCreating] = useState(false)
-  const [filters, setFilters] = useState<IdeaFiltersState>(DEFAULT_IDEA_FILTERS)
+  const [filters, setFilters] = useState<IdeaFiltersState>(loadStoredFilters)
+  const [sort, setSort] = useState<IdeaSortState>(loadStoredSort)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [cleanupResult, setCleanupResult] = useState<string | null>(null)
+  const [cleaningUp, setCleaningUp] = useState(false)
+
+  useEffect(() => {
+    localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters))
+  }, [filters])
+
+  useEffect(() => {
+    localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(sort))
+  }, [sort])
 
   const filteredIdeas = useMemo(
-    () => filterIdeas(ideas, filters, objectsById),
-    [ideas, filters, objectsById]
+    () => sortIdeas(filterIdeas(ideas, filters, objectsById), sort),
+    [ideas, filters, objectsById, sort]
   )
   const unlinkedVideos = useMemo(
     () => publishedVideos.filter((v) => v.ideaId === null),
@@ -127,29 +159,133 @@ export function IdeasTab(): ReactElement {
     await refresh()
   }
 
+  async function handleBulkSetSeries(seriesId: number | null): Promise<void> {
+    await Promise.all(
+      selectedIdeas.map((idea) =>
+        window.api.ideas.update(idea.id, { ...toIdeaInput(idea), seriesId })
+      )
+    )
+    await refresh()
+  }
+
+  async function handleBulkSetEmoji(emoji: string): Promise<void> {
+    await Promise.all(
+      selectedIdeas.map((idea) => window.api.ideas.update(idea.id, { ...toIdeaInput(idea), emoji }))
+    )
+    await refresh()
+  }
+
+  async function handleBulkDelete(): Promise<void> {
+    await Promise.all(selectedIdeas.map((idea) => window.api.ideas.remove(idea.id)))
+    setSelectedIds(new Set())
+    await refresh()
+  }
+
+  function handleShowInProgress(): void {
+    setFilters((prev) => ({ ...prev, statuses: IN_PROGRESS_STATUSES }))
+    setSort({ field: 'publishDate', direction: 'desc' })
+  }
+
+  function handleClearFilters(): void {
+    setFilters(DEFAULT_IDEA_FILTERS)
+  }
+
+  const isInProgressActive = sameStatusSet(filters.statuses, IN_PROGRESS_STATUSES)
+
+  async function handleCleanupDuplicates(): Promise<void> {
+    setCleaningUp(true)
+    const result = await window.api.ideas.mergeDuplicates()
+    setCleaningUp(false)
+    const parts: string[] = []
+    parts.push(
+      result.mergedGroups === 0
+        ? 'Aucun doublon trouvé.'
+        : `${result.mergedGroups} groupe(s) de doublons fusionné(s), ${result.removedIdeas} idée(s) retirée(s).`
+    )
+    if (result.backfilledShootDates > 0) {
+      parts.push(
+        `${result.backfilledShootDates} date(s) de tournage manquante(s) complétée(s) avec la date de publication.`
+      )
+    }
+    setCleanupResult(parts.join(' '))
+    await refresh()
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-6 py-4">
         <h1 className="text-lg font-semibold text-gray-100">Idées de vidéos</h1>
-        <button
-          onClick={() => setCreating(true)}
-          className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
-        >
-          + Nouvelle idée
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleCleanupDuplicates}
+            disabled={cleaningUp}
+            className="text-sm text-gray-500 hover:text-gray-300 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {cleaningUp ? 'Nettoyage...' : 'Nettoyer les doublons'}
+          </button>
+          <button
+            onClick={() => setCreating(true)}
+            className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
+          >
+            + Nouvelle idée
+          </button>
+        </div>
       </div>
 
+      {cleanupResult && (
+        <div className="px-6 pb-2">
+          <p className="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-300">
+            {cleanupResult}
+          </p>
+        </div>
+      )}
+
       <div className="space-y-3 px-6 pb-4">
-        <IdeaFilters filters={filters} onChange={setFilters} tags={tags} objects={objects} />
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <IdeaFilters
+              filters={filters}
+              onChange={setFilters}
+              tags={tags}
+              objects={objects}
+              series={series}
+            />
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={handleShowInProgress}
+              className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                isInProgressActive
+                  ? 'border-blue-500/50 bg-blue-500/10 text-blue-300'
+                  : 'border-white/10 text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              En cours
+            </button>
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="rounded-md border border-white/10 px-3 py-1.5 text-sm text-gray-400 hover:text-gray-200"
+            >
+              Tout afficher
+            </button>
+          </div>
+        </div>
         {selectedIds.size > 0 && (
           <BulkActionsBar
             selectedCount={selectedIds.size}
             tags={tags}
             objects={objects}
+            series={series}
             onAddTag={handleBulkAddTag}
             onAddObject={handleBulkAddObject}
             onSetStatus={handleBulkSetStatus}
+            onSetSeries={handleBulkSetSeries}
+            onSetEmoji={handleBulkSetEmoji}
+            onDelete={handleBulkDelete}
             onClear={() => setSelectedIds(new Set())}
+            onTagsChanged={refresh}
           />
         )}
       </div>
@@ -165,26 +301,63 @@ export function IdeasTab(): ReactElement {
           <p className="text-sm text-gray-500">Aucune idée ne correspond à ces filtres.</p>
         ) : (
           <>
-            <label className="mb-2 flex items-center gap-2 px-1 text-xs text-gray-500">
-              <input
-                type="checkbox"
-                checked={filteredIdeas.every((i) => selectedIds.has(i.id))}
-                onChange={(e) =>
-                  setSelectedIds(
-                    e.target.checked ? new Set(filteredIdeas.map((i) => i.id)) : new Set()
-                  )
-                }
-                className="h-4 w-4 rounded border-white/20 bg-white/5 accent-blue-600"
-              />
-              Tout sélectionner ({filteredIdeas.length})
-            </label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="mb-2 flex items-center justify-between px-1">
+              <label className="flex items-center gap-2 text-xs text-gray-500">
+                <input
+                  type="checkbox"
+                  checked={filteredIdeas.every((i) => selectedIds.has(i.id))}
+                  onChange={(e) =>
+                    setSelectedIds(
+                      e.target.checked ? new Set(filteredIdeas.map((i) => i.id)) : new Set()
+                    )
+                  }
+                  className="h-4 w-4 rounded border-white/20 bg-white/5 accent-blue-600"
+                />
+                Tout sélectionner ({filteredIdeas.length})
+              </label>
+              <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                Trier par
+                <select
+                  value={sort.field}
+                  onChange={(e) =>
+                    setSort((prev) => ({ ...prev, field: e.target.value as IdeaSortField }))
+                  }
+                  className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-xs text-gray-300 outline-none"
+                >
+                  <option value="default" className="bg-[#15161a]">
+                    Par défaut
+                  </option>
+                  <option value="shootDate" className="bg-[#15161a]">
+                    Date de tournage
+                  </option>
+                  <option value="publishDate" className="bg-[#15161a]">
+                    Date de publication
+                  </option>
+                </select>
+                {sort.field !== 'default' && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSort((prev) => ({
+                        ...prev,
+                        direction: prev.direction === 'asc' ? 'desc' : 'asc'
+                      }))
+                    }
+                    className="rounded border border-white/10 px-1.5 py-0.5 text-gray-300 hover:bg-white/5"
+                  >
+                    {sort.direction === 'asc' ? '↑ Croissant' : '↓ Décroissant'}
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.03]">
               {filteredIdeas.map((idea) => (
-                <IdeaCard
+                <IdeaListRow
                   key={idea.id}
                   idea={idea}
                   objectsById={objectsById}
                   tagsById={tagsById}
+                  seriesById={seriesById}
                   selected={selectedIds.has(idea.id)}
                   onToggleSelect={() => toggleSelect(idea.id)}
                   onClick={() => setEditingIdea(idea)}
@@ -200,11 +373,14 @@ export function IdeasTab(): ReactElement {
           idea={null}
           objects={objects}
           tags={tags}
+          series={series}
+          existingIdeas={ideas}
           linkedVideo={null}
           unlinkedVideos={unlinkedVideos}
           onClose={() => setCreating(false)}
           onSave={handleCreate}
           onTagsChanged={refresh}
+          onSeriesChanged={refresh}
           onLinkVideo={() => {}}
           onUnlinkVideo={() => {}}
         />
@@ -215,12 +391,15 @@ export function IdeasTab(): ReactElement {
           idea={editingIdea}
           objects={objects}
           tags={tags}
+          series={series}
+          existingIdeas={ideas}
           linkedVideo={publishedVideosByIdeaId.get(editingIdea.id) ?? null}
           unlinkedVideos={unlinkedVideos}
           onClose={() => setEditingIdea(null)}
           onSave={handleUpdate}
           onDelete={handleDelete}
           onTagsChanged={refresh}
+          onSeriesChanged={refresh}
           onLinkVideo={handleLinkVideo}
           onUnlinkVideo={handleUnlinkVideo}
         />

@@ -1,20 +1,31 @@
 import { useMemo, useState, type FormEvent, type ReactElement } from 'react'
 import { IDEA_STATUSES } from '@shared/types'
-import type { OwnedObject, PublishedVideo, Tag, VideoIdea, VideoIdeaInput } from '@shared/types'
+import type {
+  OwnedObject,
+  PublishedVideo,
+  Series,
+  Tag,
+  VideoIdea,
+  VideoIdeaInput
+} from '@shared/types'
 import { SearchablePicker } from '../../components/SearchablePicker'
 import { formatDate, toDateInputValue } from '../../lib/format'
+import { SeriesPicker } from '../series/SeriesPicker'
 import { TagPicker } from '../tags/TagPicker'
 
 interface IdeaFormModalProps {
   idea: VideoIdea | null
   objects: OwnedObject[]
   tags: Tag[]
+  series: Series[]
+  existingIdeas: VideoIdea[]
   linkedVideo: PublishedVideo | null
   unlinkedVideos: PublishedVideo[]
   onClose: () => void
   onSave: (input: VideoIdeaInput) => void
   onDelete?: () => void
   onTagsChanged: () => void
+  onSeriesChanged: () => Promise<void>
   onLinkVideo: (youtubeVideoId: string) => void
   onUnlinkVideo: () => void
 }
@@ -23,12 +34,15 @@ export function IdeaFormModal({
   idea,
   objects,
   tags,
+  series,
+  existingIdeas,
   linkedVideo,
   unlinkedVideos,
   onClose,
   onSave,
   onDelete,
   onTagsChanged,
+  onSeriesChanged,
   onLinkVideo,
   onUnlinkVideo
 }: IdeaFormModalProps): ReactElement {
@@ -40,6 +54,8 @@ export function IdeaFormModal({
   const [shootDate, setShootDate] = useState(toDateInputValue(idea?.shootDate ?? null))
   const [objectIds, setObjectIds] = useState<number[]>(idea?.objectIds ?? [])
   const [tagIds, setTagIds] = useState<number[]>(idea?.tagIds ?? [])
+  const [seriesId, setSeriesId] = useState<number | null>(idea?.seriesId ?? null)
+  const [titleError, setTitleError] = useState<string | null>(null)
 
   function toggleObject(id: number): void {
     setObjectIds((prev) => (prev.includes(id) ? prev.filter((o) => o !== id) : [...prev, id]))
@@ -52,16 +68,28 @@ export function IdeaFormModal({
 
   function handleSubmit(e: FormEvent): void {
     e.preventDefault()
-    if (!title.trim()) return
+    const trimmedTitle = title.trim()
+    if (!trimmedTitle) return
+
+    const duplicate = existingIdeas.some(
+      (other) => other.id !== idea?.id && other.title.trim() === trimmedTitle
+    )
+    if (duplicate) {
+      setTitleError('Une idée avec exactement ce titre existe déjà.')
+      return
+    }
+    setTitleError(null)
+
     onSave({
-      title: title.trim(),
+      title: trimmedTitle,
       emoji: emoji.trim() || null,
       description: description.trim() || null,
       status,
       publishDate: publishDate || null,
       shootDate: shootDate || null,
       objectIds,
-      tagIds
+      tagIds,
+      seriesId
     })
   }
 
@@ -98,11 +126,17 @@ export function IdeaFormModal({
               <input
                 autoFocus
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setTitle(e.target.value)
+                  if (titleError) setTitleError(null)
+                }}
                 required
-                className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500/60"
+                className={`w-full rounded-md border bg-white/5 px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500/60 ${
+                  titleError ? 'border-red-500/60' : 'border-white/10'
+                }`}
                 placeholder="Titre de la vidéo"
               />
+              {titleError && <p className="mt-1 text-xs text-red-400">{titleError}</p>}
             </div>
           </div>
 
@@ -158,6 +192,16 @@ export function IdeaFormModal({
                 className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500/60 [color-scheme:dark]"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1">Série</label>
+            <SeriesPicker
+              series={series}
+              value={seriesId}
+              onChange={setSeriesId}
+              onSeriesChanged={onSeriesChanged}
+            />
           </div>
 
           {idea && (

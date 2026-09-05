@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react'
 import { IDEA_STATUSES } from '@shared/types'
-import type { IdeaStatus, OwnedObject, Tag } from '@shared/types'
+import type { IdeaStatus, OwnedObject, Series, Tag } from '@shared/types'
 import { getTagChipStyle } from '../../lib/tagColors'
 import {
   DEFAULT_IDEA_FILTERS,
@@ -14,6 +14,7 @@ interface IdeaFiltersProps {
   onChange: (filters: IdeaFiltersState) => void
   tags: Tag[]
   objects: OwnedObject[]
+  series: Series[]
 }
 
 function DateFilterEditor({
@@ -76,7 +77,13 @@ function DateFilterEditor({
   )
 }
 
-export function IdeaFilters({ filters, onChange, tags, objects }: IdeaFiltersProps): ReactElement {
+export function IdeaFilters({
+  filters,
+  onChange,
+  tags,
+  objects,
+  series
+}: IdeaFiltersProps): ReactElement {
   const [expanded, setExpanded] = useState(false)
   const active = isFiltersActive(filters)
 
@@ -104,6 +111,15 @@ export function IdeaFilters({ filters, onChange, tags, objects }: IdeaFiltersPro
       objectIds: filters.objectIds.includes(id)
         ? filters.objectIds.filter((o) => o !== id)
         : [...filters.objectIds, id]
+    })
+  }
+
+  function toggleSeries(id: number): void {
+    onChange({
+      ...filters,
+      seriesIds: filters.seriesIds.includes(id)
+        ? filters.seriesIds.filter((s) => s !== id)
+        : [...filters.seriesIds, id]
     })
   }
 
@@ -139,107 +155,137 @@ export function IdeaFilters({ filters, onChange, tags, objects }: IdeaFiltersPro
       </div>
 
       {expanded && (
-        <div className="grid grid-cols-1 gap-4 border-t border-white/10 p-3 sm:grid-cols-2">
-          <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">Statut</label>
-            <div className="flex flex-wrap gap-1.5">
-              {IDEA_STATUSES.map((s) => (
-                <button
-                  type="button"
-                  key={s.value}
-                  onClick={() => toggleStatus(s.value)}
-                  className={`rounded-md border px-2 py-1 text-xs transition-colors ${
-                    filters.statuses.includes(s.value)
-                      ? 'border-blue-500/60 bg-blue-500/20 text-blue-200'
-                      : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-medium text-gray-400 mb-1">Tags</label>
-              {filters.tagIds.length > 1 && (
-                <div className="flex items-center gap-1 text-xs text-gray-500">
-                  <button
-                    type="button"
-                    onClick={() => onChange({ ...filters, tagMode: 'any' })}
-                    className={filters.tagMode === 'any' ? 'text-blue-300' : ''}
-                  >
-                    Au moins un
-                  </button>
-                  <span>/</span>
-                  <button
-                    type="button"
-                    onClick={() => onChange({ ...filters, tagMode: 'all' })}
-                    className={filters.tagMode === 'all' ? 'text-blue-300' : ''}
-                  >
-                    Tous
-                  </button>
+        <div className="grid grid-cols-1 gap-6 border-t border-white/10 p-3 sm:grid-cols-2">
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-medium text-gray-400 mb-1">Tags</label>
+                {filters.tagIds.length > 1 && (
+                  <div className="flex items-center gap-1 text-xs text-gray-500">
+                    <button
+                      type="button"
+                      onClick={() => onChange({ ...filters, tagMode: 'any' })}
+                      className={filters.tagMode === 'any' ? 'text-blue-300' : ''}
+                    >
+                      Au moins un
+                    </button>
+                    <span>/</span>
+                    <button
+                      type="button"
+                      onClick={() => onChange({ ...filters, tagMode: 'all' })}
+                      className={filters.tagMode === 'all' ? 'text-blue-300' : ''}
+                    >
+                      Tous
+                    </button>
+                  </div>
+                )}
+              </div>
+              {tags.length === 0 ? (
+                <p className="text-xs text-gray-600">Aucun tag créé pour l’instant.</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {tags.map((tag) => {
+                    const selected = filters.tagIds.includes(tag.id)
+                    return (
+                      <button
+                        type="button"
+                        key={tag.id}
+                        onClick={() => toggleTag(tag.id)}
+                        style={selected ? getTagChipStyle(tag.color) : undefined}
+                        className={`rounded-md border px-2 py-1 text-xs ${
+                          selected
+                            ? ''
+                            : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                        }`}
+                      >
+                        {tag.name}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </div>
-            {tags.length === 0 ? (
-              <p className="text-xs text-gray-600">Aucun tag créé pour l’instant.</p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {tags.map((tag) => {
-                  const selected = filters.tagIds.includes(tag.id)
-                  return (
+
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1">Objets</label>
+              {objects.length === 0 ? (
+                <p className="text-xs text-gray-600">Aucun objet enregistré pour l’instant.</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {objects.map((obj) => (
                     <button
                       type="button"
-                      key={tag.id}
-                      onClick={() => toggleTag(tag.id)}
-                      style={selected ? getTagChipStyle(tag.color) : undefined}
-                      className={`rounded-md border px-2 py-1 text-xs ${
-                        selected ? '' : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                      key={obj.id}
+                      onClick={() => toggleObject(obj.id)}
+                      className={`rounded-md border px-2 py-1 text-xs transition-colors ${
+                        filters.objectIds.includes(obj.id)
+                          ? 'border-blue-500/60 bg-blue-500/20 text-blue-200'
+                          : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
                       }`}
                     >
-                      {tag.name}
+                      {obj.name}
                     </button>
-                  )
-                })}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1">Série</label>
+              {series.length === 0 ? (
+                <p className="text-xs text-gray-600">Aucune série créée pour l’instant.</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {series.map((s) => (
+                    <button
+                      type="button"
+                      key={s.id}
+                      onClick={() => toggleSeries(s.id)}
+                      className={`rounded-md border px-2 py-1 text-xs transition-colors ${
+                        filters.seriesIds.includes(s.id)
+                          ? 'border-blue-500/60 bg-blue-500/20 text-blue-200'
+                          : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                      }`}
+                    >
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          <DateFilterEditor
-            label="Date de tournage"
-            value={filters.shootDate}
-            onChange={(v) => onChange({ ...filters, shootDate: v })}
-          />
-          <DateFilterEditor
-            label="Date de publication"
-            value={filters.publishDate}
-            onChange={(v) => onChange({ ...filters, publishDate: v })}
-          />
+          <div className="space-y-4">
+            <DateFilterEditor
+              label="Date de tournage"
+              value={filters.shootDate}
+              onChange={(v) => onChange({ ...filters, shootDate: v })}
+            />
+            <DateFilterEditor
+              label="Date de publication"
+              value={filters.publishDate}
+              onChange={(v) => onChange({ ...filters, publishDate: v })}
+            />
 
-          <div className="sm:col-span-2">
-            <label className="block text-xs font-medium text-gray-400 mb-1">Objets</label>
-            {objects.length === 0 ? (
-              <p className="text-xs text-gray-600">Aucun objet enregistré pour l’instant.</p>
-            ) : (
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1">Statut</label>
               <div className="flex flex-wrap gap-1.5">
-                {objects.map((obj) => (
+                {IDEA_STATUSES.map((s) => (
                   <button
                     type="button"
-                    key={obj.id}
-                    onClick={() => toggleObject(obj.id)}
+                    key={s.value}
+                    onClick={() => toggleStatus(s.value)}
                     className={`rounded-md border px-2 py-1 text-xs transition-colors ${
-                      filters.objectIds.includes(obj.id)
+                      filters.statuses.includes(s.value)
                         ? 'border-blue-500/60 bg-blue-500/20 text-blue-200'
                         : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
                     }`}
                   >
-                    {obj.name}
+                    {s.label}
                   </button>
                 ))}
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}
