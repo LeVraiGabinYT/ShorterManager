@@ -32,9 +32,9 @@ export function AnalysisVideoRow({
         onChange={onToggle}
         className="h-4 w-4 shrink-0 rounded border-white/20 bg-white/5 accent-blue-600"
       />
-      {video.thumbnailUrl && (
-        <img src={video.thumbnailUrl} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
-      )}
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-white/5 text-lg">
+        {video.emoji || '🎥'}
+      </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm text-gray-200">{video.title}</p>
         <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-gray-500">
