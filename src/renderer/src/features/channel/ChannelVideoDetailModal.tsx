@@ -34,9 +34,9 @@ export function ChannelVideoDetailModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div className="w-full max-w-lg rounded-xl border border-white/10 bg-[#15161a] p-5 shadow-2xl max-h-[85vh] overflow-y-auto">
-        {video.thumbnailUrl && (
-          <img src={video.thumbnailUrl} alt="" className="mb-4 w-full rounded-lg object-cover" />
-        )}
+        <div className="mb-4 flex h-32 w-full items-center justify-center rounded-lg bg-white/5 text-5xl">
+          {video.emoji || '🎥'}
+        </div>
 
         <a
           href={video.videoUrl}

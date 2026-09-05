@@ -27,19 +27,12 @@ export function ChannelVideoRow({
           : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'
       }`}
     >
-      {video.thumbnailUrl && (
-        <img
-          src={video.thumbnailUrl}
-          alt=""
-          className="h-16 w-16 shrink-0 rounded-md object-cover"
-        />
-      )}
+      <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md bg-white/5 text-3xl">
+        {video.emoji || '🎥'}
+      </span>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-gray-100">
-          {linkedIdea?.emoji && <span className="mr-1">{linkedIdea.emoji}</span>}
-          {video.title}
-        </p>
+        <p className="truncate text-sm font-medium text-gray-100">{video.title}</p>
         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400">
           <span>📅 {formatDate(video.publishedAt)}</span>
           <span>👁️ {video.viewCount ?? '—'}</span>

@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react'
 import type { ChannelStatus, PublishedVideo, VideoIdea } from '@shared/types'
-import { useAnalysisGroups } from '../../hooks/useAnalysisGroups'
 import { useIdeasData } from '../../hooks/useIdeasData'
-import { AddToGroupControl } from '../analysis/AddToGroupControl'
+import { toIdeaInput } from '../../lib/ideaInput'
+import { BulkDuplicateModal, type BulkAddPlan } from './BulkDuplicateModal'
+import { ChannelBulkAddControl } from './ChannelBulkAddControl'
 import { ChannelVideoDetailModal } from './ChannelVideoDetailModal'
 import { ChannelVideoRow } from './ChannelVideoRow'
 import { DuplicateIdeaModal } from './DuplicateIdeaModal'
 
 export function ChannelTab(): ReactElement {
-  const { ideas, tags, tagsById, publishedVideos, refresh: refreshIdeasData } = useIdeasData()
-  const { groups, refresh: refreshGroups } = useAnalysisGroups()
+  const {
+    ideas,
+    objects,
+    tags,
+    tagsById,
+    series,
+    publishedVideos,
+    refresh: refreshIdeasData
+  } = useIdeasData()
   const [status, setStatus] = useState<ChannelStatus | null>(null)
   const [connecting, setConnecting] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -23,6 +31,13 @@ export function ChannelTab(): ReactElement {
   const [duplicateCheck, setDuplicateCheck] = useState<{
     video: PublishedVideo
     existingIdea: VideoIdea
+  } | null>(null)
+  const [bulkDuplicate, setBulkDuplicate] = useState<{
+    plans: BulkAddPlan[]
+    tagIds: number[]
+    objectIds: number[]
+    seriesId: number | null
+    emoji: string
   } | null>(null)
 
   useEffect(() => {
@@ -139,6 +154,52 @@ export function ChannelTab(): ReactElement {
     })
   }
 
+  async function applyBulkPlans(
+    plans: BulkAddPlan[],
+    tagIds: number[],
+    objectIds: number[],
+    seriesId: number | null,
+    emoji: string
+  ): Promise<void> {
+    for (const plan of plans) {
+      const resultingIdea = plan.existingIdea
+        ? await window.api.channel.linkVideoToIdea(plan.video.youtubeVideoId, plan.existingIdea.id)
+        : await window.api.channel.createIdeaFromVideo(plan.video.youtubeVideoId)
+
+      if (tagIds.length > 0 || objectIds.length > 0 || seriesId !== null || emoji !== '') {
+        await window.api.ideas.update(resultingIdea.id, {
+          ...toIdeaInput(resultingIdea),
+          tagIds: Array.from(new Set([...resultingIdea.tagIds, ...tagIds])),
+          objectIds: Array.from(new Set([...resultingIdea.objectIds, ...objectIds])),
+          seriesId: seriesId ?? resultingIdea.seriesId,
+          emoji: emoji || resultingIdea.emoji
+        })
+      }
+    }
+
+    setSelectedIds(new Set())
+    setBulkDuplicate(null)
+    await refreshIdeasData()
+  }
+
+  function handleBulkAdd(
+    tagIds: number[],
+    objectIds: number[],
+    seriesId: number | null,
+    emoji: string
+  ): void {
+    const plans: BulkAddPlan[] = [...selectedIds]
+      .map((id) => videosToShow.find((v) => v.youtubeVideoId === id))
+      .filter((v): v is PublishedVideo => v !== undefined)
+      .map((video) => ({ video, existingIdea: findDuplicateIdea(video) }))
+
+    if (plans.some((p) => p.existingIdea !== null)) {
+      setBulkDuplicate({ plans, tagIds, objectIds, seriesId, emoji })
+    } else {
+      applyBulkPlans(plans, tagIds, objectIds, seriesId, emoji)
+    }
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-6 py-4">
@@ -214,20 +275,15 @@ export function ChannelTab(): ReactElement {
             )}
 
             {selectedIds.size > 0 && (
-              <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
-                <p className="mb-2 text-xs text-gray-400">
-                  {selectedIds.size} vidéo{selectedIds.size > 1 ? 's' : ''} sélectionnée
-                  {selectedIds.size > 1 ? 's' : ''}
-                </p>
-                <AddToGroupControl
-                  groups={groups}
-                  selectedVideoIds={[...selectedIds]}
-                  onAdded={async () => {
-                    setSelectedIds(new Set())
-                    await refreshGroups()
-                  }}
-                />
-              </div>
+              <ChannelBulkAddControl
+                selectedCount={selectedIds.size}
+                tags={tags}
+                objects={objects}
+                series={series}
+                onAdd={handleBulkAdd}
+                onTagsChanged={refreshIdeasData}
+                onSeriesChanged={refreshIdeasData}
+              />
             )}
 
             {videosToShow.length === 0 ? (
@@ -324,6 +380,31 @@ export function ChannelTab(): ReactElement {
           onMerge={() => mergeIntoExistingIdea(duplicateCheck.video, duplicateCheck.existingIdea)}
           onCreateNew={() => createNewIdeaFromVideo(duplicateCheck.video)}
           onCancel={() => setDuplicateCheck(null)}
+        />
+      )}
+
+      {bulkDuplicate && (
+        <BulkDuplicateModal
+          plans={bulkDuplicate.plans}
+          onCancel={() => setBulkDuplicate(null)}
+          onAddNewOnly={() =>
+            applyBulkPlans(
+              bulkDuplicate.plans.filter((p) => p.existingIdea === null),
+              bulkDuplicate.tagIds,
+              bulkDuplicate.objectIds,
+              bulkDuplicate.seriesId,
+              bulkDuplicate.emoji
+            )
+          }
+          onMergeAndAddAll={() =>
+            applyBulkPlans(
+              bulkDuplicate.plans,
+              bulkDuplicate.tagIds,
+              bulkDuplicate.objectIds,
+              bulkDuplicate.seriesId,
+              bulkDuplicate.emoji
+            )
+          }
         />
       )}
     </div>
