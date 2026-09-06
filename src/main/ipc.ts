@@ -7,14 +7,27 @@ import {
   installUpdateNow
 } from './autoUpdate'
 import { exportBackup, importBackup, pickImportFile, wipeAllAppData } from './backup'
+import { getReleaseNotes } from './releaseNotes'
 import { getChannelStatus } from './db/channel'
 import { createIdea, listIdeas, removeIdea, updateIdea } from './db/ideas'
 import { createObject, listObjects, removeObject, updateObject } from './db/objects'
 import { listPublishedVideos } from './db/publishedVideos'
-import { createSeries, listSeries, removeSeries, renameSeries } from './db/series'
+import {
+  createSeries,
+  listSeries,
+  removeSeries,
+  renameSeries,
+  updateSeriesEmoji
+} from './db/series'
 import { createTag, listTags, removeTag, updateTag } from './db/tags'
 import { mergeDuplicateIdeas } from './dedupe'
-import { loadSettings, updateSettings } from './settings'
+import {
+  exportSettings,
+  importSettings,
+  loadSettings,
+  pickSettingsImportFile,
+  updateSettings
+} from './settings'
 import { connectChannel, disconnectChannel } from './youtube/oauth'
 import {
   createIdeaFromVideo,
@@ -90,12 +103,18 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('series:list', () => listSeries())
   ipcMain.handle('series:create', (_event, name: string) => createSeries(name))
   ipcMain.handle('series:rename', (_event, id: number, name: string) => renameSeries(id, name))
+  ipcMain.handle('series:updateEmoji', (_event, id: number, emoji: string) =>
+    updateSeriesEmoji(id, emoji)
+  )
   ipcMain.handle('series:remove', (_event, id: number) => removeSeries(id))
 
   ipcMain.handle('app:getInfo', () => getAppInfo())
 
   ipcMain.handle('settings:get', () => loadSettings())
   ipcMain.handle('settings:update', (_event, patch: Partial<AppSettings>) => updateSettings(patch))
+  ipcMain.handle('settings:export', () => exportSettings())
+  ipcMain.handle('settings:pickImportFile', () => pickSettingsImportFile())
+  ipcMain.handle('settings:import', (_event, filePath: string) => importSettings(filePath))
 
   ipcMain.handle('backup:export', () => exportBackup())
   ipcMain.handle('backup:pickImportFile', () => pickImportFile())
@@ -108,4 +127,5 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('updates:download', () => downloadUpdateNow())
   ipcMain.handle('updates:installNow', () => installUpdateNow())
   ipcMain.handle('updates:getStatus', () => getUpdateStatus())
+  ipcMain.handle('updates:getReleaseNotes', () => getReleaseNotes())
 }

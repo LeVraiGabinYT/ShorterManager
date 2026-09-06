@@ -207,9 +207,12 @@ function importReplace(data: BackupData): BackupImportResult {
     }
 
     for (const s of data.series) {
-      db.prepare('INSERT INTO series (id, name, created_at) VALUES (@id, @name, @createdAt)').run({
+      db.prepare(
+        'INSERT INTO series (id, name, emoji, created_at) VALUES (@id, @name, @emoji, @createdAt)'
+      ).run({
         id: s.id,
         name: s.name,
+        emoji: s.emoji,
         createdAt: s.createdAt
       })
     }
@@ -364,7 +367,7 @@ function importMerge(data: BackupData): BackupImportResult {
         seriesIdMap.set(s.id, existing.id)
         continue
       }
-      const created = createSeries(s.name)
+      const created = createSeries(s.name, s.emoji)
       seriesIdMap.set(s.id, created.id)
       addedSeries++
     }

@@ -14,6 +14,7 @@ import {
   type IdeaSortState
 } from '../../lib/ideaFilters'
 import { toIdeaInput } from '../../lib/ideaInput'
+import { ideasWithUpcomingPublishDate, shiftDateByDays } from '../../lib/scheduleShift'
 import { BulkActionsBar } from './BulkActionsBar'
 import { IdeaFilters } from './IdeaFilters'
 import { IdeaFormModal } from './IdeaFormModal'
@@ -62,6 +63,9 @@ export function IdeasTab(): ReactElement {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [cleanupResult, setCleanupResult] = useState<string | null>(null)
   const [cleaningUp, setCleaningUp] = useState(false)
+  const [pendingShift, setPendingShift] = useState<1 | -1 | null>(null)
+  const [shifting, setShifting] = useState(false)
+  const [shiftMessage, setShiftMessage] = useState<string | null>(null)
 
   useEffect(() => {
     localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters))
@@ -83,6 +87,7 @@ export function IdeasTab(): ReactElement {
     () => publishedVideos.filter((v) => v.ideaId === null),
     [publishedVideos]
   )
+  const upcomingIdeas = useMemo(() => ideasWithUpcomingPublishDate(ideas), [ideas])
 
   async function handleCreate(input: VideoIdeaInput): Promise<void> {
     await window.api.ideas.create(input)
@@ -222,6 +227,26 @@ export function IdeasTab(): ReactElement {
     await refresh()
   }
 
+  async function handleShiftSchedule(days: 1 | -1): Promise<void> {
+    setShifting(true)
+    await Promise.all(
+      upcomingIdeas.map((idea) =>
+        window.api.ideas.update(idea.id, {
+          ...toIdeaInput(idea),
+          publishDate: shiftDateByDays(idea.publishDate as string, days)
+        })
+      )
+    )
+    setShifting(false)
+    setPendingShift(null)
+    setShiftMessage(
+      `${upcomingIdeas.length} idée${upcomingIdeas.length > 1 ? 's' : ''} décalée${
+        upcomingIdeas.length > 1 ? 's' : ''
+      } de ${days > 0 ? '+1' : '-1'} jour.`
+    )
+    await refresh()
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-6 py-4">
@@ -234,6 +259,54 @@ export function IdeasTab(): ReactElement {
           >
             {cleaningUp ? 'Nettoyage...' : 'Nettoyer les doublons'}
           </button>
+
+          {pendingShift === null ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm text-gray-500">Décaler le planning</span>
+              <button
+                type="button"
+                onClick={() => setPendingShift(-1)}
+                disabled={upcomingIdeas.length === 0}
+                title="Décaler toutes les publications futures d’un jour en arrière"
+                className="rounded-md border border-white/10 px-2 py-1 text-xs text-gray-300 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                −1j
+              </button>
+              <button
+                type="button"
+                onClick={() => setPendingShift(1)}
+                disabled={upcomingIdeas.length === 0}
+                title="Décaler toutes les publications futures d’un jour en avant"
+                className="rounded-md border border-white/10 px-2 py-1 text-xs text-gray-300 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                +1j
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-amber-300">
+                Décaler {upcomingIdeas.length} idée{upcomingIdeas.length > 1 ? 's' : ''} de{' '}
+                {pendingShift > 0 ? '+1' : '-1'} jour ?
+              </span>
+              <button
+                type="button"
+                onClick={() => handleShiftSchedule(pendingShift)}
+                disabled={shifting}
+                className="rounded bg-blue-600 px-2 py-1 font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {shifting ? 'Décalage...' : 'Confirmer'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPendingShift(null)}
+                disabled={shifting}
+                className="text-gray-400 hover:text-gray-200"
+              >
+                Annuler
+              </button>
+            </div>
+          )}
+
           <button
             onClick={() => setCreating(true)}
             className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
@@ -247,6 +320,14 @@ export function IdeasTab(): ReactElement {
         <div className="px-6 pb-2">
           <p className="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-300">
             {cleanupResult}
+          </p>
+        </div>
+      )}
+
+      {shiftMessage && (
+        <div className="px-6 pb-2">
+          <p className="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-300">
+            {shiftMessage}
           </p>
         </div>
       )}
@@ -379,6 +460,9 @@ export function IdeasTab(): ReactElement {
                   idea={idea}
                   objectsById={objectsById}
                   seriesById={seriesById}
+                  tagsById={tagsById}
+                  statusColors={settings.statusColors}
+                  showTags={settings.showTagsOnIdeaCard}
                   ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
                   selected={selectedIds.has(idea.id)}
                   onToggleSelect={() => toggleSelect(idea.id)}

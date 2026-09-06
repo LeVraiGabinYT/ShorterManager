@@ -15,13 +15,15 @@ import { CriterionPicker } from './CriterionPicker'
 import { DatasetBarChart } from './DatasetBarChart'
 import { EvolutionChart, type TimelineEntry } from './EvolutionChart'
 import { StatsSummary } from './StatsSummary'
+import { TagTrendsPanel } from './TagTrendsPanel'
 import { SearchablePicker } from '../../components/SearchablePicker'
 import { formatDate } from '../../lib/format'
 
 const DISPLAY_MODES = [
   { id: 'dataset', label: 'Jeu de données' },
   { id: 'evolution', label: 'Évolution dans le temps' },
-  { id: 'comparison', label: 'Comparaison' }
+  { id: 'comparison', label: 'Comparaison' },
+  { id: 'trends', label: 'Tendances de chaîne' }
 ] as const
 
 type DisplayMode = (typeof DISPLAY_MODES)[number]['id']
@@ -221,6 +223,9 @@ export function AnalysisTab(): ReactElement {
                 </div>
               )}
               {displayMode === 'evolution' && <EvolutionChart entries={evolutionEntries} />}
+              {displayMode === 'trends' && (
+                <TagTrendsPanel tags={tags} tagsById={tagsById} publishedVideos={publishedVideos} />
+              )}
               {displayMode === 'comparison' && (
                 <div className="space-y-4">
                   <ComparisonChart

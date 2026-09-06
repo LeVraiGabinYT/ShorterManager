@@ -7,11 +7,16 @@ import type {
   Tag,
   VideoIdea
 } from '@shared/types'
+import { DEFAULT_OVERVIEW_SECTIONS, DEFAULT_STATUS_COLORS } from '@shared/types'
 
 const DEFAULT_SETTINGS: AppSettings = {
   maxRecentVideos: 25,
   ruleAutoStatusOnLink: true,
-  ruleMissingObjectsPreparation: true
+  ruleMissingObjectsPreparation: true,
+  statusColors: DEFAULT_STATUS_COLORS,
+  showTagsOnIdeaCard: false,
+  overviewSectionOrder: DEFAULT_OVERVIEW_SECTIONS,
+  overviewVisibleSections: DEFAULT_OVERVIEW_SECTIONS
 }
 
 export interface IdeasData {

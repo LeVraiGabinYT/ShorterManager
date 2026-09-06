@@ -1,8 +1,9 @@
 import { useMemo, useState, type ReactElement } from 'react'
-import type { OwnedObject, Series, VideoIdea, VideoIdeaInput } from '@shared/types'
+import type { IdeaStatus, OwnedObject, Series, Tag, VideoIdea, VideoIdeaInput } from '@shared/types'
 import { useIdeasData } from '../../hooks/useIdeasData'
 import { sortIdeas } from '../../lib/ideaFilters'
 import { getEffectiveStatus } from '../../lib/ideaStatus'
+import { overviewSectionColor } from '../../lib/sectionColors'
 import { IdeaFormModal } from '../ideas/IdeaFormModal'
 import { IdeaListRow } from '../ideas/IdeaListRow'
 
@@ -18,7 +19,11 @@ interface PlanningColumnProps {
   ideas: VideoIdea[]
   objectsById: Map<number, OwnedObject>
   seriesById: Map<number, Series>
+  tagsById: Map<number, Tag>
+  statusColors: Record<IdeaStatus, string>
+  showTags: boolean
   ruleMissingObjectsPreparation: boolean
+  color: string
   onSelect: (idea: VideoIdea) => void
 }
 
@@ -28,11 +33,18 @@ function PlanningColumn({
   ideas,
   objectsById,
   seriesById,
+  tagsById,
+  statusColors,
+  showTags,
   ruleMissingObjectsPreparation,
+  color,
   onSelect
 }: PlanningColumnProps): ReactElement {
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-white/10 bg-white/[0.03]">
+    <div
+      style={{ backgroundColor: `${color}14`, borderColor: `${color}40` }}
+      className="flex min-h-0 flex-col overflow-hidden rounded-lg border"
+    >
       <h2 className="shrink-0 px-4 pb-2 pt-4 text-sm font-medium text-gray-200">
         {title} ({ideas.length})
       </h2>
@@ -46,6 +58,9 @@ function PlanningColumn({
               idea={idea}
               objectsById={objectsById}
               seriesById={seriesById}
+              tagsById={tagsById}
+              statusColors={statusColors}
+              showTags={showTags}
               ruleMissingObjectsPreparation={ruleMissingObjectsPreparation}
               onClick={() => onSelect(idea)}
             />
@@ -62,6 +77,7 @@ export function PlanningsTab(): ReactElement {
     objects,
     objectsById,
     tags,
+    tagsById,
     series,
     seriesById,
     publishedVideos,
@@ -94,7 +110,7 @@ export function PlanningsTab(): ReactElement {
   const publicationPlanning = useMemo(
     () =>
       sortIdeas(
-        eligibleIdeas.filter((idea) => !isPastDate(idea.publishDate)),
+        eligibleIdeas.filter((idea) => idea.publishDate !== null && !isPastDate(idea.publishDate)),
         { field: 'publishDate', direction: 'asc' }
       ),
     [eligibleIdeas]
@@ -103,7 +119,7 @@ export function PlanningsTab(): ReactElement {
   const shootingPlanning = useMemo(
     () =>
       sortIdeas(
-        eligibleIdeas.filter((idea) => !isPastDate(idea.shootDate)),
+        eligibleIdeas.filter((idea) => idea.shootDate !== null && !isPastDate(idea.shootDate)),
         { field: 'shootDate', direction: 'asc' }
       ),
     [eligibleIdeas]
@@ -153,7 +169,11 @@ export function PlanningsTab(): ReactElement {
               ideas={shootingPlanning}
               objectsById={objectsById}
               seriesById={seriesById}
+              tagsById={tagsById}
+              statusColors={settings.statusColors}
+              showTags={settings.showTagsOnIdeaCard}
               ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
+              color={overviewSectionColor('shooting', settings.statusColors)}
               onSelect={setSelectedIdea}
             />
             <PlanningColumn
@@ -162,7 +182,11 @@ export function PlanningsTab(): ReactElement {
               ideas={publicationPlanning}
               objectsById={objectsById}
               seriesById={seriesById}
+              tagsById={tagsById}
+              statusColors={settings.statusColors}
+              showTags={settings.showTagsOnIdeaCard}
               ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
+              color={overviewSectionColor('toSchedule', settings.statusColors)}
               onSelect={setSelectedIdea}
             />
           </div>

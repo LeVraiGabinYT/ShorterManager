@@ -22,6 +22,7 @@ interface IdeaFormModalProps {
   linkedVideo: PublishedVideo | null
   unlinkedVideos: PublishedVideo[]
   ruleMissingObjectsPreparation?: boolean
+  defaultSeriesId?: number | null
   onClose: () => void
   onSave: (input: VideoIdeaInput) => void
   onDelete?: () => void
@@ -40,6 +41,7 @@ export function IdeaFormModal({
   linkedVideo,
   unlinkedVideos,
   ruleMissingObjectsPreparation = true,
+  defaultSeriesId = null,
   onClose,
   onSave,
   onDelete,
@@ -56,7 +58,7 @@ export function IdeaFormModal({
   const [shootDate, setShootDate] = useState(toDateInputValue(idea?.shootDate ?? null))
   const [objectIds, setObjectIds] = useState<number[]>(idea?.objectIds ?? [])
   const [tagIds, setTagIds] = useState<number[]>(idea?.tagIds ?? [])
-  const [seriesId, setSeriesId] = useState<number | null>(idea?.seriesId ?? null)
+  const [seriesId, setSeriesId] = useState<number | null>(idea?.seriesId ?? defaultSeriesId)
   const [titleError, setTitleError] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 

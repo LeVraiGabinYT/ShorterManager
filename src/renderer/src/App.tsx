@@ -1,4 +1,6 @@
-import { useState, type ReactElement } from 'react'
+import { useEffect, useState, type ReactElement } from 'react'
+import type { UpdateStatus } from '@shared/types'
+import { UpdateAvailableModal } from './components/UpdateAvailableModal'
 import { OverviewTab } from './features/overview/OverviewTab'
 import { VideosTab } from './features/videos/VideosTab'
 import { PropertiesTab } from './features/properties/PropertiesTab'
@@ -17,6 +19,44 @@ type TabId = (typeof TABS)[number]['id']
 
 function App(): ReactElement {
   const [activeTab, setActiveTab] = useState<TabId>('videos')
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' })
+  const [dismissedVersion, setDismissedVersion] = useState<string | null>(null)
+
+  // Polls the same status the main process's autoUpdater maintains, so the popup reacts whether
+  // the startup check found it or the user triggered a check manually from Paramètres.
+  useEffect(() => {
+    let cancelled = false
+    const poll = (): void => {
+      window.api.updates.getStatus().then((s) => {
+        if (!cancelled) setUpdateStatus(s)
+      })
+    }
+    poll()
+    const interval = setInterval(poll, 2000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [])
+
+  async function handleInstallUpdate(): Promise<void> {
+    await window.api.updates.download()
+  }
+
+  async function handleRestartAndInstall(): Promise<void> {
+    await window.api.updates.installNow()
+  }
+
+  function handleDismissUpdate(): void {
+    if (updateStatus.state === 'available' || updateStatus.state === 'downloaded') {
+      setDismissedVersion(updateStatus.version)
+    }
+  }
+
+  const showUpdateModal =
+    (updateStatus.state === 'available' && updateStatus.version !== dismissedVersion) ||
+    updateStatus.state === 'downloading' ||
+    (updateStatus.state === 'downloaded' && updateStatus.version !== dismissedVersion)
 
   return (
     <div className="flex h-screen flex-col bg-[#0b0c0f]">
@@ -43,6 +83,18 @@ function App(): ReactElement {
         {activeTab === 'analysis' && <AnalysisTab />}
         {activeTab === 'settings' && <SettingsTab />}
       </main>
+
+      {showUpdateModal &&
+        (updateStatus.state === 'available' ||
+          updateStatus.state === 'downloading' ||
+          updateStatus.state === 'downloaded') && (
+          <UpdateAvailableModal
+            status={updateStatus}
+            onInstall={handleInstallUpdate}
+            onRestart={handleRestartAndInstall}
+            onDismiss={handleDismissUpdate}
+          />
+        )}
     </div>
   )
 }

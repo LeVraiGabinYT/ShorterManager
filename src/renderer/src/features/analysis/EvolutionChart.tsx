@@ -14,8 +14,11 @@ interface EvolutionChartProps {
   entries: TimelineEntry[]
 }
 
-const PUBLISHED_COLOR = '#3987e5'
-const PRODUCTION_COLOR = '#d95926'
+const BAR_COLOR = '#3987e5'
+const BAR_WIDTH = 16
+const BAR_GAP = 4
+const LABEL_HEIGHT = 14
+const BAR_AREA_HEIGHT = 120
 
 function monthKey(dateStr: string): string {
   return dateStr.slice(0, 7)
@@ -36,34 +39,35 @@ function monthLabel(monthStr: string): string {
 }
 
 export function EvolutionChart({ entries }: EvolutionChartProps): ReactElement {
+  const currentMonth = monthKey(new Date().toISOString())
+
   const buckets = useMemo(() => {
     const dated = entries.filter((e): e is TimelineEntry & { date: string } => e.date !== null)
     if (dated.length === 0) return []
 
     const months = dated.map((e) => monthKey(e.date))
     const minMonth = months.reduce((a, b) => (a < b ? a : b))
-    const maxMonth = months.reduce((a, b) => (a > b ? a : b))
+    // Extend the range to "today" so the current-position marker always has a place to land,
+    // even when every video so far lies in the past.
+    const maxMonth = [...months, currentMonth].reduce((a, b) => (a > b ? a : b))
 
-    const result: { month: string; published: number; production: number }[] = []
+    const result: { month: string; count: number }[] = []
     let cursor = minMonth
     while (cursor <= maxMonth) {
-      result.push({ month: cursor, published: 0, production: 0 })
+      result.push({ month: cursor, count: 0 })
       cursor = nextMonthKey(cursor)
     }
 
     for (const entry of dated) {
       const bucket = result.find((b) => b.month === monthKey(entry.date))
-      if (!bucket) continue
-      if (entry.kind === 'published') bucket.published += 1
-      else bucket.production += 1
+      if (bucket) bucket.count += 1
     }
 
     return result
-  }, [entries])
+  }, [entries, currentMonth])
 
-  const maxTotal = Math.max(1, ...buckets.map((b) => b.published + b.production))
-  const publishedCount = entries.filter((e) => e.kind === 'published').length
-  const productionCount = entries.filter((e) => e.kind === 'production').length
+  const maxCount = Math.max(1, ...buckets.map((b) => b.count))
+  const currentMonthIndex = buckets.findIndex((b) => b.month === currentMonth)
 
   if (entries.length === 0) {
     return (
@@ -76,59 +80,70 @@ export function EvolutionChart({ entries }: EvolutionChartProps): ReactElement {
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-400">
-        {publishedCount} vidéo{publishedCount !== 1 ? 's' : ''} publiée
-        {publishedCount !== 1 ? 's' : ''} · {productionCount} en préparation
+        {entries.length} vidéo{entries.length !== 1 ? 's' : ''} au total
       </p>
 
       {buckets.length > 0 && (
-        <div>
-          <div className="mb-2 flex items-center gap-4 text-xs text-gray-400">
-            <span className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-2.5 w-2.5 rounded-sm"
-                style={{ backgroundColor: PUBLISHED_COLOR }}
-              />
-              Publiée
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-2.5 w-2.5 rounded-sm"
-                style={{ backgroundColor: PRODUCTION_COLOR }}
-              />
-              En préparation
-            </span>
-          </div>
+        <div className="overflow-x-auto pb-1">
+          <div
+            className="relative"
+            style={{ width: buckets.length * (BAR_WIDTH + BAR_GAP) - BAR_GAP }}
+          >
+            {currentMonthIndex !== -1 && (
+              <div
+                className="pointer-events-none absolute top-0 border-l border-dashed border-amber-400/70"
+                style={{
+                  left: currentMonthIndex * (BAR_WIDTH + BAR_GAP) + BAR_WIDTH / 2,
+                  height: LABEL_HEIGHT + BAR_AREA_HEIGHT
+                }}
+              >
+                <span className="absolute -top-0.5 left-1 whitespace-nowrap text-[9px] text-amber-400">
+                  Aujourd’hui
+                </span>
+              </div>
+            )}
 
-          <div className="flex items-end gap-1 overflow-x-auto pb-1" style={{ height: 120 }}>
-            {buckets.map((bucket) => {
-              const total = bucket.published + bucket.production
-              const totalHeight = (total / maxTotal) * 100
-              const publishedHeight = total > 0 ? (bucket.published / total) * totalHeight : 0
-              const productionHeight = total > 0 ? (bucket.production / total) * totalHeight : 0
-              return (
-                <div
+            <div className="flex items-end gap-1">
+              {buckets.map((bucket) => {
+                const heightPct = (bucket.count / maxCount) * 100
+                return (
+                  <div
+                    key={bucket.month}
+                    className="flex shrink-0 flex-col items-center"
+                    style={{ width: BAR_WIDTH }}
+                    title={`${monthLabel(bucket.month)} — ${bucket.count} vidéo${bucket.count !== 1 ? 's' : ''}`}
+                  >
+                    <span
+                      className="text-[9px] leading-[14px] text-gray-400"
+                      style={{ height: LABEL_HEIGHT }}
+                    >
+                      {bucket.count}
+                    </span>
+                    <div
+                      className="flex w-full flex-col justify-end"
+                      style={{ height: BAR_AREA_HEIGHT }}
+                    >
+                      <div
+                        style={{ height: `${heightPct}%`, backgroundColor: BAR_COLOR }}
+                        className="w-full rounded-t-sm"
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="mt-1 flex gap-1 text-[10px] text-gray-600">
+              {buckets.map((bucket) => (
+                <span
                   key={bucket.month}
-                  className="flex h-full w-4 shrink-0 flex-col justify-end"
-                  title={`${monthLabel(bucket.month)} — ${bucket.published} publiée(s), ${bucket.production} en préparation`}
+                  className="shrink-0 text-center"
+                  style={{ width: BAR_WIDTH }}
                 >
-                  <div
-                    style={{ height: `${productionHeight}%`, backgroundColor: PRODUCTION_COLOR }}
-                    className="w-full rounded-t-sm"
-                  />
-                  <div
-                    style={{ height: `${publishedHeight}%`, backgroundColor: PUBLISHED_COLOR }}
-                    className={productionHeight === 0 ? 'w-full rounded-t-sm' : 'w-full'}
-                  />
-                </div>
-              )
-            })}
-          </div>
-          <div className="mt-1 flex gap-1 overflow-x-auto text-[10px] text-gray-600">
-            {buckets.map((bucket) => (
-              <span key={bucket.month} className="w-4 shrink-0 text-center">
-                {buckets.length <= 24 ? monthLabel(bucket.month).slice(0, 3) : ''}
-              </span>
-            ))}
+                  {buckets.length <= 24 ? monthLabel(bucket.month).slice(0, 3) : ''}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       )}

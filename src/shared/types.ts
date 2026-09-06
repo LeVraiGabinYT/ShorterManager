@@ -12,6 +12,31 @@ export const IDEA_STATUSES = [
 
 export type IdeaStatus = (typeof IDEA_STATUSES)[number]['value']
 
+// Current default look of each status badge — the customizable "statusColors" setting starts
+// from these values.
+export const DEFAULT_STATUS_COLORS: Record<IdeaStatus, string> = {
+  idea: '#6b7280',
+  preparation: '#f97316',
+  shooting: '#ef4444',
+  editing: '#8b5cf6',
+  ready: '#3b82f6',
+  scheduled: '#10b981',
+  published: '#10b981'
+}
+
+export const OVERVIEW_SECTIONS = [
+  { id: 'preparation', label: 'À préparer' },
+  { id: 'objects', label: 'Objets à acheter' },
+  { id: 'shooting', label: 'Tournages' },
+  { id: 'editing', label: 'Montages' },
+  { id: 'toSchedule', label: 'À programmer' },
+  { id: 'scheduled', label: 'Prochaines publications' }
+] as const
+
+export type OverviewSectionId = (typeof OVERVIEW_SECTIONS)[number]['id']
+
+export const DEFAULT_OVERVIEW_SECTIONS: OverviewSectionId[] = OVERVIEW_SECTIONS.map((s) => s.id)
+
 export const TAG_COLOR_PRESETS = [
   '#ef4444',
   '#f97316',
@@ -37,6 +62,7 @@ export type TagInput = Omit<Tag, 'id' | 'createdAt'>
 export interface Series {
   id: number
   name: string
+  emoji: string
   createdAt: string
 }
 
@@ -127,11 +153,37 @@ export type UpdateStatus =
   | { state: 'downloaded'; version: string }
   | { state: 'error'; message: string }
 
+export interface ReleaseNotes {
+  version: string
+  notes: string | null
+  url: string
+  error?: string
+}
+
 export interface AppSettings {
   maxRecentVideos: number
   // "Règles" (Paramètres): default-on automations the user can turn off.
   ruleAutoStatusOnLink: boolean
   ruleMissingObjectsPreparation: boolean
+  // "Personnalisation" (Paramètres).
+  statusColors: Record<IdeaStatus, string>
+  showTagsOnIdeaCard: boolean
+  // Vue d'ensemble customization: order is independent from visibility, so dragging a hidden
+  // section doesn't require also showing it, and hiding a section doesn't lose its position.
+  overviewSectionOrder: OverviewSectionId[]
+  overviewVisibleSections: OverviewSectionId[]
+}
+
+export interface SettingsExportResult {
+  success: boolean
+  path?: string
+  error?: string
+  canceled?: boolean
+}
+
+export interface SettingsImportResult {
+  success: boolean
+  error?: string
 }
 
 export type BackupMode = 'merge' | 'replace'
@@ -197,6 +249,7 @@ export interface ShorterManagerApi {
     list: () => Promise<Series[]>
     create: (name: string) => Promise<Series>
     rename: (id: number, name: string) => Promise<Series>
+    updateEmoji: (id: number, emoji: string) => Promise<Series>
     remove: (id: number) => Promise<void>
   }
   app: {
@@ -205,6 +258,9 @@ export interface ShorterManagerApi {
   settings: {
     get: () => Promise<AppSettings>
     update: (patch: Partial<AppSettings>) => Promise<AppSettings>
+    export: () => Promise<SettingsExportResult>
+    pickImportFile: () => Promise<string | null>
+    import: (filePath: string) => Promise<SettingsImportResult>
   }
   backup: {
     export: () => Promise<BackupExportResult>
@@ -217,5 +273,6 @@ export interface ShorterManagerApi {
     download: () => Promise<void>
     installNow: () => Promise<void>
     getStatus: () => Promise<UpdateStatus>
+    getReleaseNotes: () => Promise<ReleaseNotes>
   }
 }

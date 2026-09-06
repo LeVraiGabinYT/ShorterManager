@@ -4,8 +4,13 @@ import type {
   AppSettings,
   BackupImportResult,
   BackupMode,
+  IdeaStatus,
+  OverviewSectionId,
+  ReleaseNotes,
   UpdateStatus
 } from '@shared/types'
+import { DEFAULT_STATUS_COLORS, IDEA_STATUSES, OVERVIEW_SECTIONS } from '@shared/types'
+import { overviewSectionColor } from '../../lib/sectionColors'
 
 function ImportConfirmModal({
   fileName,
@@ -174,6 +179,14 @@ export function SettingsTab(): ReactElement {
   const [wipeSucceeded, setWipeSucceeded] = useState(false)
 
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' })
+  const [releaseNotes, setReleaseNotes] = useState<ReleaseNotes | null>(null)
+
+  const [settingsExporting, setSettingsExporting] = useState(false)
+  const [settingsExportMessage, setSettingsExportMessage] = useState<string | null>(null)
+  const [settingsImportMessage, setSettingsImportMessage] = useState<string | null>(null)
+  const [settingsImportSucceeded, setSettingsImportSucceeded] = useState(false)
+  const [draggedSectionId, setDraggedSectionId] = useState<OverviewSectionId | null>(null)
+  const [localSectionOrder, setLocalSectionOrder] = useState<OverviewSectionId[] | null>(null)
 
   useEffect(() => {
     window.api.app.getInfo().then(setAppInfo)
@@ -181,6 +194,7 @@ export function SettingsTab(): ReactElement {
       setSettings(s)
       setMaxRecentVideosInput(String(s.maxRecentVideos))
     })
+    window.api.updates.getReleaseNotes().then(setReleaseNotes)
   }, [])
 
   useEffect(() => {
@@ -223,6 +237,90 @@ export function SettingsTab(): ReactElement {
   ): Promise<void> {
     const updated = await window.api.settings.update({ [key]: value })
     setSettings(updated)
+  }
+
+  async function handleUpdateStatusColor(status: IdeaStatus, color: string): Promise<void> {
+    if (!settings) return
+    const updated = await window.api.settings.update({
+      statusColors: { ...settings.statusColors, [status]: color }
+    })
+    setSettings(updated)
+  }
+
+  async function handleResetStatusColors(): Promise<void> {
+    const updated = await window.api.settings.update({ statusColors: DEFAULT_STATUS_COLORS })
+    setSettings(updated)
+  }
+
+  async function handleToggleShowTags(value: boolean): Promise<void> {
+    const updated = await window.api.settings.update({ showTagsOnIdeaCard: value })
+    setSettings(updated)
+  }
+
+  async function handleToggleOverviewSection(id: OverviewSectionId): Promise<void> {
+    if (!settings) return
+    const isVisible = settings.overviewVisibleSections.includes(id)
+    const overviewVisibleSections = isVisible
+      ? settings.overviewVisibleSections.filter((s) => s !== id)
+      : [...settings.overviewVisibleSections, id]
+    const updated = await window.api.settings.update({ overviewVisibleSections })
+    setSettings(updated)
+  }
+
+  function handleSectionDragStart(id: OverviewSectionId): void {
+    if (!settings) return
+    setDraggedSectionId(id)
+    setLocalSectionOrder(settings.overviewSectionOrder)
+  }
+
+  // Reorders the in-progress (not-yet-persisted) list as soon as the dragged item passes over
+  // another one, so items visually move out of the way before the drop happens.
+  function handleSectionDragEnter(targetId: OverviewSectionId): void {
+    if (!draggedSectionId || draggedSectionId === targetId) return
+    setLocalSectionOrder((prev) => {
+      const base = prev ?? settings?.overviewSectionOrder ?? []
+      const next = base.filter((id) => id !== draggedSectionId)
+      next.splice(next.indexOf(targetId), 0, draggedSectionId)
+      return next
+    })
+  }
+
+  async function handleSectionDragEnd(): Promise<void> {
+    const finalOrder = localSectionOrder
+    setDraggedSectionId(null)
+    setLocalSectionOrder(null)
+    if (!settings || !finalOrder) return
+    if (finalOrder.join(',') === settings.overviewSectionOrder.join(',')) return
+    const updated = await window.api.settings.update({ overviewSectionOrder: finalOrder })
+    setSettings(updated)
+  }
+
+  async function handleExportSettings(): Promise<void> {
+    setSettingsExporting(true)
+    setSettingsExportMessage(null)
+    const result = await window.api.settings.export()
+    setSettingsExporting(false)
+    if (result.canceled) return
+    setSettingsExportMessage(
+      result.success
+        ? `Paramètres exportés : ${result.path}`
+        : (result.error ?? 'Échec de l’export.')
+    )
+  }
+
+  async function handleImportSettings(): Promise<void> {
+    const path = await window.api.settings.pickImportFile()
+    if (!path) return
+    const result = await window.api.settings.import(path)
+    setSettingsImportSucceeded(result.success)
+    setSettingsImportMessage(
+      result.success ? 'Paramètres importés avec succès.' : (result.error ?? 'Échec de l’import.')
+    )
+    if (result.success) {
+      const refreshed = await window.api.settings.get()
+      setSettings(refreshed)
+      setMaxRecentVideosInput(String(refreshed.maxRecentVideos))
+    }
   }
 
   async function handleExport(): Promise<void> {
@@ -343,6 +441,34 @@ export function SettingsTab(): ReactElement {
         </section>
 
         <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+          <h2 className="text-sm font-medium text-gray-200">Notes de version</h2>
+          {releaseNotes === null ? (
+            <p className="mt-3 text-xs text-gray-500">Chargement...</p>
+          ) : (
+            <>
+              <p className="mt-1 text-xs text-gray-500">Version {releaseNotes.version}</p>
+              {releaseNotes.notes ? (
+                <p className="mt-3 whitespace-pre-wrap text-sm text-gray-300">
+                  {releaseNotes.notes}
+                </p>
+              ) : (
+                <p className="mt-3 text-xs text-gray-500">
+                  {releaseNotes.error ?? 'Aucune note pour cette version.'}
+                </p>
+              )}
+              <a
+                href={releaseNotes.url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-block text-xs text-blue-300 hover:underline"
+              >
+                Voir sur GitHub →
+              </a>
+            </>
+          )}
+        </section>
+
+        <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
           <h2 className="text-sm font-medium text-gray-200">Général</h2>
           <div className="mt-3">
             <label className="mb-1 block text-xs font-medium text-gray-400">
@@ -413,6 +539,149 @@ export function SettingsTab(): ReactElement {
                 </span>
               </label>
             </div>
+          )}
+        </section>
+
+        <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+          <h2 className="text-sm font-medium text-gray-200">Personnalisation</h2>
+
+          {settings && (
+            <div className="mt-3 space-y-5">
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-medium text-gray-400">
+                    Couleurs des statuts
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleResetStatusColors}
+                    className="text-xs text-gray-500 hover:text-gray-300"
+                  >
+                    Réinitialiser
+                  </button>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {IDEA_STATUSES.map((s) => (
+                    <label key={s.value} className="flex items-center gap-2 text-sm text-gray-300">
+                      <input
+                        type="color"
+                        value={settings.statusColors[s.value]}
+                        onChange={(e) => handleUpdateStatusColor(s.value, e.target.value)}
+                        className="h-7 w-9 shrink-0 cursor-pointer rounded border border-white/10 bg-transparent p-0.5"
+                      />
+                      {s.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={settings.showTagsOnIdeaCard}
+                  onChange={(e) => handleToggleShowTags(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-white/20 bg-white/5 accent-blue-600"
+                />
+                <span>
+                  <span className="block text-gray-200">
+                    Afficher les tags sous le titre des idées
+                  </span>
+                  <span className="block text-xs text-gray-500">
+                    Montre les tags de chaque idée directement dans les listes (Idées, Vue
+                    d’ensemble, Plannings, Séries).
+                  </span>
+                </span>
+              </label>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-400">
+                  Sections de la Vue d’ensemble
+                </label>
+                <p className="mb-2 text-xs text-gray-500">
+                  Coche les sections à afficher et glisse-les pour changer leur ordre — la
+                  disposition à 2 colonnes et les couleurs reprennent celles de la Vue d’ensemble.
+                </p>
+                <div className="grid max-w-md grid-cols-2 gap-1.5">
+                  {(localSectionOrder ?? settings.overviewSectionOrder).map((id) => {
+                    const label = OVERVIEW_SECTIONS.find((s) => s.id === id)?.label ?? id
+                    const visible = settings.overviewVisibleSections.includes(id)
+                    const color = overviewSectionColor(id, settings.statusColors)
+                    return (
+                      <div
+                        key={id}
+                        draggable
+                        onDragStart={() => handleSectionDragStart(id)}
+                        onDragEnter={() => handleSectionDragEnter(id)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDragEnd={handleSectionDragEnd}
+                        style={{ backgroundColor: `${color}1f`, borderColor: `${color}55` }}
+                        className={`flex items-center gap-1.5 rounded-md border px-2 py-1 transition-opacity ${
+                          draggedSectionId === id ? 'opacity-40' : ''
+                        } ${visible ? '' : 'opacity-50'}`}
+                      >
+                        <span
+                          className="shrink-0 cursor-grab select-none text-xs text-gray-400 active:cursor-grabbing"
+                          title="Glisser pour réordonner"
+                        >
+                          ⠿
+                        </span>
+                        <label className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-gray-200">
+                          <input
+                            type="checkbox"
+                            checked={visible}
+                            onChange={() => handleToggleOverviewSection(id)}
+                            className="h-3.5 w-3.5 shrink-0 rounded border-white/20 bg-white/5 accent-blue-600"
+                          />
+                          <span className="truncate">{label}</span>
+                        </label>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+          <h2 className="text-sm font-medium text-gray-200">Sauvegarde des paramètres</h2>
+          <p className="mt-1 text-xs text-gray-500">
+            Exporte ou restaure uniquement tes préférences (couleurs, règles, disposition) —
+            indépendant de la sauvegarde des données ci-dessous.
+          </p>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={handleExportSettings}
+              disabled={settingsExporting}
+              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {settingsExporting ? 'Export en cours...' : 'Exporter les paramètres'}
+            </button>
+            <button
+              onClick={handleImportSettings}
+              className="rounded-md border border-white/10 px-3 py-1.5 text-sm text-gray-300 hover:bg-white/5"
+            >
+              Importer...
+            </button>
+          </div>
+
+          {settingsExportMessage && (
+            <p className="mt-3 break-all rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-300">
+              {settingsExportMessage}
+            </p>
+          )}
+
+          {settingsImportMessage && (
+            <p
+              className={`mt-3 rounded-md border px-3 py-2 text-xs ${
+                settingsImportSucceeded
+                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                  : 'border-red-500/40 bg-red-500/10 text-red-200'
+              }`}
+            >
+              {settingsImportMessage}
+            </p>
           )}
         </section>
 

@@ -10,6 +10,10 @@ export interface EffectiveStatus {
  * linked object forces it back to "Préparation" for display/counting purposes, regardless of the
  * manually selected status — until every needed object is marked as purchased. This is the
  * "Règle" ruleMissingObjectsPreparation, on by default and toggleable in Paramètres.
+ *
+ * Exceptions: "Publiée" is never touched (already shipped), and "Idée" is never touched either —
+ * an idea that hasn't started production yet isn't "in préparation" just because it references an
+ * object nobody's bought; that only matters once you actually move it toward shooting/editing.
  */
 export function getEffectiveStatus(
   idea: VideoIdea,
@@ -18,7 +22,12 @@ export function getEffectiveStatus(
 ): EffectiveStatus {
   const missingObjects = idea.objectIds.some((id) => objectsById.get(id)?.purchased === false)
 
-  if (ruleMissingObjectsPreparation && missingObjects && idea.status !== 'published') {
+  if (
+    ruleMissingObjectsPreparation &&
+    missingObjects &&
+    idea.status !== 'published' &&
+    idea.status !== 'idea'
+  ) {
     return { status: 'preparation', missingObjects: true }
   }
 

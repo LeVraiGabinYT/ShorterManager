@@ -1,137 +1,71 @@
 import { useMemo, useState, type ReactElement } from 'react'
 import type { Series, VideoIdea } from '@shared/types'
 import { useIdeasData } from '../../hooks/useIdeasData'
-import { toIdeaInput } from '../../lib/ideaInput'
-import { formatDate } from '../../lib/format'
+import { formatNumber, formatRelativeTime } from '../../lib/format'
+import { computeSeriesStats } from '../../lib/seriesStats'
+import { SeriesDetailModal } from './SeriesDetailModal'
 
-function SeriesRow({
-  series,
-  ideas,
-  onRename,
-  onDelete,
-  onRemoveIdea
-}: {
+interface SeriesListRowProps {
   series: Series
-  ideas: VideoIdea[]
-  onRename: (name: string) => void
-  onDelete: () => void
-  onRemoveIdea: (idea: VideoIdea) => void
-}): ReactElement {
-  const [editing, setEditing] = useState(false)
-  const [name, setName] = useState(series.name)
-  const [expanded, setExpanded] = useState(false)
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  episodeCount: number
+  lastEpisodeDate: string | null
+  avgViews: number | null
+  onClick: () => void
+}
 
-  function handleSave(): void {
-    const trimmed = name.trim()
-    if (trimmed && trimmed !== series.name) onRename(trimmed)
-    else setName(series.name)
-    setEditing(false)
-  }
-
+function SeriesListRow({
+  series,
+  episodeCount,
+  lastEpisodeDate,
+  avgViews,
+  onClick
+}: SeriesListRowProps): ReactElement {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          {editing ? (
-            <input
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onBlur={handleSave}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSave()
-                if (e.key === 'Escape') {
-                  setName(series.name)
-                  setEditing(false)
-                }
-              }}
-              className="rounded border border-white/10 bg-white/5 px-2 py-1 text-sm text-gray-100 outline-none focus:border-blue-500/60"
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="text-sm font-medium text-gray-100 hover:underline"
-            >
-              {series.name}
-            </button>
-          )}
-        </div>
+    <div
+      onClick={onClick}
+      className="flex w-full cursor-pointer items-center gap-3 border-b border-white/5 px-4 py-3 transition-colors last:border-b-0 hover:bg-white/[0.04]"
+    >
+      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-white/5 text-3xl">
+        {series.emoji || '🎬'}
+      </span>
 
-        <div className="flex shrink-0 items-center gap-3 text-xs text-gray-500">
-          <span>
-            {ideas.length} idée{ideas.length > 1 ? 's' : ''}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate font-medium text-gray-100">{series.name}</span>
+          <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs font-medium text-gray-400">
+            {episodeCount} vidéo{episodeCount > 1 ? 's' : ''}
           </span>
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="hover:text-gray-300"
-          >
-            {expanded ? 'Réduire' : 'Détails'}
-          </button>
-          {confirmingDelete ? (
-            <span className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={onDelete}
-                className="rounded bg-red-600 px-2 py-0.5 font-medium text-white hover:bg-red-500"
-              >
-                Confirmer
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmingDelete(false)}
-                className="text-gray-400 hover:text-gray-200"
-              >
-                Annuler
-              </button>
-            </span>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setConfirmingDelete(true)}
-              className="hover:text-red-300"
-            >
-              Supprimer
-            </button>
-          )}
         </div>
+        <p className="mt-0.5 truncate text-xs text-gray-500">
+          Dernier épisode {formatRelativeTime(lastEpisodeDate)}
+        </p>
       </div>
 
-      {expanded && (
-        <div className="mt-3 space-y-1">
-          {ideas.length === 0 ? (
-            <p className="text-xs text-gray-600">Aucune idée dans cette série pour l’instant.</p>
-          ) : (
-            ideas.map((idea) => (
-              <div
-                key={idea.id}
-                className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs text-gray-300 hover:bg-white/5"
-              >
-                <span className="truncate">
-                  {idea.emoji && <span className="mr-1.5">{idea.emoji}</span>}
-                  {idea.title} · {formatDate(idea.publishDate)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onRemoveIdea(idea)}
-                  className="shrink-0 text-gray-500 hover:text-red-300"
-                >
-                  Retirer
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-      )}
+      <div className="shrink-0 text-right">
+        <p className="text-sm font-medium text-gray-200">{formatNumber(avgViews)}</p>
+        <p className="text-xs text-gray-500">vues moy.</p>
+      </div>
     </div>
   )
 }
 
 export function SeriesTab(): ReactElement {
-  const { ideas, series, loading, refresh } = useIdeasData()
+  const {
+    ideas,
+    objects,
+    objectsById,
+    tags,
+    tagsById,
+    series,
+    publishedVideos,
+    publishedVideosByIdeaId,
+    settings,
+    loading,
+    refresh
+  } = useIdeasData()
   const [newName, setNewName] = useState('')
+  const [openSeriesId, setOpenSeriesId] = useState<number | null>(null)
+  const openSeries = series.find((s) => s.id === openSeriesId) ?? null
 
   const ideasBySeriesId = useMemo(() => {
     const map = new Map<number, VideoIdea[]>()
@@ -157,13 +91,14 @@ export function SeriesTab(): ReactElement {
     await refresh()
   }
 
-  async function handleDelete(s: Series): Promise<void> {
-    await window.api.series.remove(s.id)
+  async function handleEmojiChange(s: Series, emoji: string): Promise<void> {
+    await window.api.series.updateEmoji(s.id, emoji)
     await refresh()
   }
 
-  async function handleRemoveIdea(idea: VideoIdea): Promise<void> {
-    await window.api.ideas.update(idea.id, { ...toIdeaInput(idea), seriesId: null })
+  async function handleDelete(s: Series): Promise<void> {
+    await window.api.series.remove(s.id)
+    setOpenSeriesId(null)
     await refresh()
   }
 
@@ -200,20 +135,49 @@ export function SeriesTab(): ReactElement {
         ) : series.length === 0 ? (
           <p className="text-sm text-gray-500">Aucune série pour l’instant.</p>
         ) : (
-          <div className="space-y-2">
-            {series.map((s) => (
-              <SeriesRow
-                key={s.id}
-                series={s}
-                ideas={ideasBySeriesId.get(s.id) ?? []}
-                onRename={(name) => handleRename(s, name)}
-                onDelete={() => handleDelete(s)}
-                onRemoveIdea={handleRemoveIdea}
-              />
-            ))}
+          <div className="rounded-lg border border-white/10 bg-white/[0.03]">
+            {series.map((s) => {
+              const stats = computeSeriesStats(
+                ideasBySeriesId.get(s.id) ?? [],
+                publishedVideosByIdeaId
+              )
+              return (
+                <SeriesListRow
+                  key={s.id}
+                  series={s}
+                  episodeCount={stats.episodeCount}
+                  lastEpisodeDate={stats.lastEpisodeDate}
+                  avgViews={stats.avgViews}
+                  onClick={() => setOpenSeriesId(s.id)}
+                />
+              )
+            })}
           </div>
         )}
       </div>
+
+      {openSeries && (
+        <SeriesDetailModal
+          series={openSeries}
+          allIdeas={ideas}
+          objects={objects}
+          objectsById={objectsById}
+          tags={tags}
+          tagsById={tagsById}
+          allSeries={series}
+          publishedVideos={publishedVideos}
+          publishedVideosByIdeaId={publishedVideosByIdeaId}
+          statusColors={settings.statusColors}
+          showTags={settings.showTagsOnIdeaCard}
+          ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
+          onClose={() => setOpenSeriesId(null)}
+          onRename={(name) => handleRename(openSeries, name)}
+          onEmojiChange={(emoji) => handleEmojiChange(openSeries, emoji)}
+          onDeleteSeries={() => handleDelete(openSeries)}
+          onSeriesChanged={refresh}
+          refresh={refresh}
+        />
+      )}
     </div>
   )
 }

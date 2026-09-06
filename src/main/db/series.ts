@@ -4,6 +4,7 @@ import type { Series } from '../../shared/types'
 interface SeriesRow {
   id: number
   name: string
+  emoji: string
   created_at: string
 }
 
@@ -11,6 +12,7 @@ function toSeries(row: SeriesRow): Series {
   return {
     id: row.id,
     name: row.name,
+    emoji: row.emoji,
     createdAt: row.created_at
   }
 }
@@ -20,13 +22,20 @@ export function listSeries(): Series[] {
   return rows.map(toSeries)
 }
 
-export function createSeries(name: string): Series {
-  const result = getDb().prepare('INSERT INTO series (name) VALUES (?)').run(name)
+export function createSeries(name: string, emoji?: string): Series {
+  const result = emoji
+    ? getDb().prepare('INSERT INTO series (name, emoji) VALUES (?, ?)').run(name, emoji)
+    : getDb().prepare('INSERT INTO series (name) VALUES (?)').run(name)
   return getSeriesById(result.lastInsertRowid as number)
 }
 
 export function renameSeries(id: number, name: string): Series {
   getDb().prepare('UPDATE series SET name = ? WHERE id = ?').run(name, id)
+  return getSeriesById(id)
+}
+
+export function updateSeriesEmoji(id: number, emoji: string): Series {
+  getDb().prepare('UPDATE series SET emoji = ? WHERE id = ?').run(emoji, id)
   return getSeriesById(id)
 }
 

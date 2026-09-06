@@ -119,6 +119,7 @@ function migrate(database: Database.Database): void {
   ensureColumn(database, 'published_videos', 'average_view_percentage', 'REAL')
   ensureColumn(database, 'published_videos', 'description', 'TEXT')
   ensureColumn(database, 'ideas', 'series_id', 'INTEGER REFERENCES series(id) ON DELETE SET NULL')
+  ensureColumn(database, 'series', 'emoji', "TEXT NOT NULL DEFAULT '🎬'")
 
   // The "analysis groups" feature (named, manually-curated video sets for comparison) was
   // replaced by the unified Analyse tab's ad-hoc dataset builder — drop its now-unused tables.

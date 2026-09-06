@@ -50,6 +50,7 @@ const api: ShorterManagerApi = {
     list: () => ipcRenderer.invoke('series:list'),
     create: (name: string) => ipcRenderer.invoke('series:create', name),
     rename: (id: number, name: string) => ipcRenderer.invoke('series:rename', id, name),
+    updateEmoji: (id: number, emoji: string) => ipcRenderer.invoke('series:updateEmoji', id, emoji),
     remove: (id: number) => ipcRenderer.invoke('series:remove', id)
   },
   app: {
@@ -57,7 +58,10 @@ const api: ShorterManagerApi = {
   },
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),
-    update: (patch: Partial<AppSettings>) => ipcRenderer.invoke('settings:update', patch)
+    update: (patch: Partial<AppSettings>) => ipcRenderer.invoke('settings:update', patch),
+    export: () => ipcRenderer.invoke('settings:export'),
+    pickImportFile: () => ipcRenderer.invoke('settings:pickImportFile'),
+    import: (filePath: string) => ipcRenderer.invoke('settings:import', filePath)
   },
   backup: {
     export: () => ipcRenderer.invoke('backup:export'),
@@ -70,7 +74,8 @@ const api: ShorterManagerApi = {
     check: () => ipcRenderer.invoke('updates:check'),
     download: () => ipcRenderer.invoke('updates:download'),
     installNow: () => ipcRenderer.invoke('updates:installNow'),
-    getStatus: () => ipcRenderer.invoke('updates:getStatus')
+    getStatus: () => ipcRenderer.invoke('updates:getStatus'),
+    getReleaseNotes: () => ipcRenderer.invoke('updates:getReleaseNotes')
   }
 }
 
