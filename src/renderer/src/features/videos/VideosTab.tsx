@@ -3,9 +3,11 @@ import { ChannelTab } from '../channel/ChannelTab'
 import { IdeasTab } from '../ideas/IdeasTab'
 import { PlanningsTab } from '../plannings/PlanningsTab'
 import { SeriesTab } from '../series/SeriesTab'
+import { TasksTab } from '../tasks/TasksTab'
 
 const SUB_TABS = [
   { id: 'plannings', label: 'Plannings' },
+  { id: 'tasks', label: 'Tâches' },
   { id: 'ideas', label: 'Idées' },
   { id: 'series', label: 'Séries' },
   { id: 'channel', label: 'Chaîne YouTube' }
@@ -36,6 +38,7 @@ export function VideosTab(): ReactElement {
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {activeSubTab === 'plannings' && <PlanningsTab />}
+        {activeSubTab === 'tasks' && <TasksTab />}
         {activeSubTab === 'ideas' && <IdeasTab />}
         {activeSubTab === 'series' && <SeriesTab />}
         {activeSubTab === 'channel' && <ChannelTab />}

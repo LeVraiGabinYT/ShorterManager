@@ -27,16 +27,40 @@ function isOverviewSectionId(value: unknown): value is OverviewSectionId {
   return typeof value === 'string' && (DEFAULT_OVERVIEW_SECTIONS as string[]).includes(value)
 }
 
-// Keeps a persisted order/visibility list valid even if a future app version renames or adds a
-// section: unknown ids are dropped, and any section missing from an order list is appended.
+// Keeps a persisted order list valid even if a future app version renames or adds a section:
+// unknown ids are dropped, and a section missing from an already-saved order (because it didn't
+// exist yet when the user last customized their layout) is inserted at the same relative spot it
+// holds in DEFAULT_OVERVIEW_SECTIONS — not blindly appended at the very end. This matters because
+// "tasks" defaults to the FIRST section: a user who customized their order before the Tâches
+// feature existed must still get it inserted at the front, not tacked on after everything else.
 function sanitizeOverviewOrder(value: unknown): OverviewSectionId[] {
   const filtered = Array.isArray(value) ? value.filter(isOverviewSectionId) : []
-  const missing = DEFAULT_OVERVIEW_SECTIONS.filter((id) => !filtered.includes(id))
-  return [...filtered, ...missing]
+  if (filtered.length === 0) return [...DEFAULT_OVERVIEW_SECTIONS]
+
+  const result = [...filtered]
+  const defaultIndex = new Map(DEFAULT_OVERVIEW_SECTIONS.map((id, i) => [id, i]))
+  for (const id of DEFAULT_OVERVIEW_SECTIONS) {
+    if (result.includes(id)) continue
+    const idx = defaultIndex.get(id) as number
+    let insertAt = result.length
+    for (let i = 0; i < result.length; i++) {
+      if ((defaultIndex.get(result[i]) as number) > idx) {
+        insertAt = i
+        break
+      }
+    }
+    result.splice(insertAt, 0, id)
+  }
+  return result
 }
 
+// A section missing from an already-saved visibility list (because it didn't exist yet) defaults
+// to visible, same as every section did when visibility was first introduced — not hidden.
 function sanitizeOverviewVisibility(value: unknown): OverviewSectionId[] {
-  return Array.isArray(value) ? value.filter(isOverviewSectionId) : DEFAULT_OVERVIEW_SECTIONS
+  const filtered = Array.isArray(value) ? value.filter(isOverviewSectionId) : []
+  if (!Array.isArray(value)) return [...DEFAULT_OVERVIEW_SECTIONS]
+  const missing = DEFAULT_OVERVIEW_SECTIONS.filter((id) => !filtered.includes(id))
+  return [...filtered, ...missing]
 }
 
 function mergeWithDefaults(parsed: Partial<AppSettings>): AppSettings {

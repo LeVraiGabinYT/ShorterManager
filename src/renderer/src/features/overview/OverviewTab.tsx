@@ -6,6 +6,9 @@ import type {
   OwnedObjectInput,
   Series,
   Tag,
+  Task,
+  TaskInput,
+  TaskType,
   VideoIdea,
   VideoIdeaInput
 } from '@shared/types'
@@ -14,9 +17,12 @@ import { formatDate, formatPrice, formatRelativeTime } from '../../lib/format'
 import { getEffectiveStatus } from '../../lib/ideaStatus'
 import { ideaUrgencyDate, objectsToBuy, sortByUrgency, type ObjectToBuy } from '../../lib/priority'
 import { overviewSectionColor } from '../../lib/sectionColors'
+import { taskColor } from '../../lib/taskTypeColors'
+import { isTaskOverdue, sortTasksByUrgency } from '../../lib/taskUrgency'
 import { IdeaFormModal } from '../ideas/IdeaFormModal'
 import { IdeaListRow } from '../ideas/IdeaListRow'
 import { ObjectFormModal } from '../objects/ObjectFormModal'
+import { TaskFormModal } from '../tasks/TaskFormModal'
 
 const IN_PROGRESS_STATUSES: IdeaStatus[] = ['preparation', 'shooting', 'editing', 'ready']
 
@@ -63,6 +69,7 @@ interface IdeaListSectionProps {
   statusColors: Record<IdeaStatus, string>
   showTags: boolean
   ruleMissingObjectsPreparation: boolean
+  pendingTaskCountByIdeaId: Map<number, number>
   color: string
   onSelect: (idea: VideoIdea) => void
 }
@@ -77,6 +84,7 @@ function IdeaListSection({
   statusColors,
   showTags,
   ruleMissingObjectsPreparation,
+  pendingTaskCountByIdeaId,
   color,
   onSelect
 }: IdeaListSectionProps): ReactElement {
@@ -102,6 +110,7 @@ function IdeaListSection({
               statusColors={statusColors}
               showTags={showTags}
               ruleMissingObjectsPreparation={ruleMissingObjectsPreparation}
+              pendingTaskCount={pendingTaskCountByIdeaId.get(idea.id) ?? 0}
               onClick={() => onSelect(idea)}
             />
           ))}
@@ -183,9 +192,76 @@ function ObjectsToBuySection({
   )
 }
 
+interface TasksSectionProps {
+  tasks: Task[]
+  taskTypesById: Map<number, TaskType>
+  statusColors: Record<IdeaStatus, string>
+  color: string
+  onSelect: (task: Task) => void
+}
+
+function TasksSection({
+  tasks,
+  taskTypesById,
+  statusColors,
+  color,
+  onSelect
+}: TasksSectionProps): ReactElement {
+  return (
+    <div
+      style={{ backgroundColor: `${color}14`, borderColor: `${color}40` }}
+      className="rounded-lg border"
+    >
+      <h2 className="px-4 pt-3 pb-2 text-sm font-medium text-gray-200">
+        Tâches à faire ({tasks.length})
+      </h2>
+      {tasks.length === 0 ? (
+        <p className="px-4 pb-4 text-sm text-gray-500">Aucune tâche en attente.</p>
+      ) : (
+        <div className="border-t border-white/10">
+          {tasks.map((task) => {
+            const overdue = isTaskOverdue(task)
+            const types = task.typeIds
+              .map((id) => taskTypesById.get(id))
+              .filter((t): t is TaskType => !!t)
+            const rowColor = taskColor(task, taskTypesById, statusColors)
+            return (
+              <div
+                key={task.id}
+                onClick={() => onSelect(task)}
+                style={overdue ? undefined : { borderLeft: `3px solid ${rowColor}` }}
+                className={`flex w-full cursor-pointer items-center gap-3 border-b border-white/5 px-4 py-3 transition-colors last:border-b-0 hover:bg-white/[0.04] ${overdue ? 'border-l-[3px] border-l-red-500/70' : ''}`}
+              >
+                <span className="text-lg">{task.emoji || '✅'}</span>
+                <div className="min-w-0 flex-1">
+                  <span className="truncate font-medium text-gray-100">{task.title}</span>
+                  <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-gray-500">
+                    {task.dueDate && (
+                      <span className={overdue ? 'font-medium text-red-300' : ''}>
+                        📅 {formatDate(task.dueDate)}
+                        {task.dueTime ? ` à ${task.dueTime}` : ''}
+                      </span>
+                    )}
+                    {types.map((t) => (
+                      <span key={t.id}>
+                        {t.emoji} {t.name}
+                      </span>
+                    ))}
+                  </p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function OverviewTab(): ReactElement {
   const {
     ideas,
+    ideasById,
     objects,
     objectsById,
     tags,
@@ -194,12 +270,17 @@ export function OverviewTab(): ReactElement {
     seriesById,
     publishedVideos,
     publishedVideosByIdeaId,
+    tasks,
+    taskTypes,
+    taskTypesById,
+    pendingTaskCountByIdeaId,
     settings,
     loading,
     refresh
   } = useIdeasData()
   const [selectedIdea, setSelectedIdea] = useState<VideoIdea | null>(null)
   const [editingObject, setEditingObject] = useState<OwnedObject | null>(null)
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
   const unlinkedVideos = useMemo(
     () => publishedVideos.filter((v) => v.ideaId === null),
     [publishedVideos]
@@ -284,6 +365,16 @@ export function OverviewTab(): ReactElement {
 
   const objectsNeeded = useMemo(() => objectsToBuy(objects, ideas), [objects, ideas])
 
+  const pendingTasks = useMemo(
+    () =>
+      sortTasksByUrgency(
+        tasks.filter((t) => t.status === 'pending'),
+        taskTypesById,
+        ideasById
+      ),
+    [tasks, taskTypesById, ideasById]
+  )
+
   const sectionElements: Record<OverviewSectionId, ReactElement> = {
     preparation: (
       <IdeaListSection
@@ -296,6 +387,7 @@ export function OverviewTab(): ReactElement {
         statusColors={settings.statusColors}
         showTags={settings.showTagsOnIdeaCard}
         ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
+        pendingTaskCountByIdeaId={pendingTaskCountByIdeaId}
         color={overviewSectionColor('preparation', settings.statusColors)}
         onSelect={setSelectedIdea}
       />
@@ -319,6 +411,7 @@ export function OverviewTab(): ReactElement {
         statusColors={settings.statusColors}
         showTags={settings.showTagsOnIdeaCard}
         ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
+        pendingTaskCountByIdeaId={pendingTaskCountByIdeaId}
         color={overviewSectionColor('shooting', settings.statusColors)}
         onSelect={setSelectedIdea}
       />
@@ -334,6 +427,7 @@ export function OverviewTab(): ReactElement {
         statusColors={settings.statusColors}
         showTags={settings.showTagsOnIdeaCard}
         ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
+        pendingTaskCountByIdeaId={pendingTaskCountByIdeaId}
         color={overviewSectionColor('editing', settings.statusColors)}
         onSelect={setSelectedIdea}
       />
@@ -349,6 +443,7 @@ export function OverviewTab(): ReactElement {
         statusColors={settings.statusColors}
         showTags={settings.showTagsOnIdeaCard}
         ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
+        pendingTaskCountByIdeaId={pendingTaskCountByIdeaId}
         color={overviewSectionColor('toSchedule', settings.statusColors)}
         onSelect={setSelectedIdea}
       />
@@ -364,8 +459,18 @@ export function OverviewTab(): ReactElement {
         statusColors={settings.statusColors}
         showTags={settings.showTagsOnIdeaCard}
         ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
+        pendingTaskCountByIdeaId={pendingTaskCountByIdeaId}
         color={overviewSectionColor('scheduled', settings.statusColors)}
         onSelect={setSelectedIdea}
+      />
+    ),
+    tasks: (
+      <TasksSection
+        tasks={pendingTasks}
+        taskTypesById={taskTypesById}
+        statusColors={settings.statusColors}
+        color={overviewSectionColor('tasks', settings.statusColors)}
+        onSelect={setEditingTask}
       />
     )
   }
@@ -423,6 +528,20 @@ export function OverviewTab(): ReactElement {
     await refresh()
   }
 
+  async function handleUpdateTask(input: TaskInput): Promise<void> {
+    if (!editingTask) return
+    await window.api.tasks.update(editingTask.id, input)
+    setEditingTask(null)
+    await refresh()
+  }
+
+  async function handleDeleteTask(): Promise<void> {
+    if (!editingTask) return
+    await window.api.tasks.remove(editingTask.id)
+    setEditingTask(null)
+    await refresh()
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="px-6 py-4">
@@ -475,6 +594,11 @@ export function OverviewTab(): ReactElement {
           existingIdeas={ideas}
           linkedVideo={publishedVideosByIdeaId.get(selectedIdea.id) ?? null}
           unlinkedVideos={unlinkedVideos}
+          tasks={tasks}
+          taskTypes={taskTypes}
+          taskTypesById={taskTypesById}
+          statusColors={settings.statusColors}
+          onTasksChanged={refresh}
           onClose={() => setSelectedIdea(null)}
           onSave={handleUpdate}
           onDelete={handleDelete}
@@ -492,6 +616,18 @@ export function OverviewTab(): ReactElement {
           onClose={() => setEditingObject(null)}
           onSave={handleUpdateObject}
           onDelete={handleDeleteObject}
+        />
+      )}
+
+      {editingTask && (
+        <TaskFormModal
+          task={editingTask}
+          taskTypes={taskTypes}
+          ideas={ideas}
+          onClose={() => setEditingTask(null)}
+          onSave={handleUpdateTask}
+          onDelete={handleDeleteTask}
+          onTaskTypesChanged={refresh}
         />
       )}
     </div>

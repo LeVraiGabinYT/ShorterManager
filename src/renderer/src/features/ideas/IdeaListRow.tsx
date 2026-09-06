@@ -14,6 +14,7 @@ interface IdeaListRowProps {
   statusColors: Record<IdeaStatus, string>
   showTags?: boolean
   ruleMissingObjectsPreparation?: boolean
+  pendingTaskCount?: number
   selected?: boolean
   onToggleSelect?: () => void
   onClick: () => void
@@ -28,6 +29,7 @@ export function IdeaListRow({
   statusColors,
   showTags = false,
   ruleMissingObjectsPreparation = true,
+  pendingTaskCount = 0,
   selected = false,
   onToggleSelect,
   onClick,
@@ -81,6 +83,12 @@ export function IdeaListRow({
             {missingObjects && (
               <span className="shrink-0 rounded-full border border-red-500/40 bg-red-500/20 px-2 py-0.5 text-xs font-medium text-red-300">
                 Objets manquants
+              </span>
+            )}
+
+            {pendingTaskCount > 0 && (
+              <span className="shrink-0 rounded-full border border-pink-500/40 bg-pink-500/20 px-2 py-0.5 text-xs font-medium text-pink-300">
+                {pendingTaskCount} tâche{pendingTaskCount > 1 ? 's' : ''} en attente
               </span>
             )}
           </div>

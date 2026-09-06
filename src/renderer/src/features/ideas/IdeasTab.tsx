@@ -52,6 +52,10 @@ export function IdeasTab(): ReactElement {
     seriesById,
     publishedVideos,
     publishedVideosByIdeaId,
+    tasks,
+    taskTypes,
+    taskTypesById,
+    pendingTaskCountByIdeaId,
     settings,
     loading,
     refresh
@@ -464,6 +468,7 @@ export function IdeasTab(): ReactElement {
                   statusColors={settings.statusColors}
                   showTags={settings.showTagsOnIdeaCard}
                   ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
+                  pendingTaskCount={pendingTaskCountByIdeaId.get(idea.id) ?? 0}
                   selected={selectedIds.has(idea.id)}
                   onToggleSelect={() => toggleSelect(idea.id)}
                   onClick={() => setEditingIdea(idea)}
@@ -502,6 +507,11 @@ export function IdeasTab(): ReactElement {
           existingIdeas={ideas}
           linkedVideo={publishedVideosByIdeaId.get(editingIdea.id) ?? null}
           unlinkedVideos={unlinkedVideos}
+          tasks={tasks}
+          taskTypes={taskTypes}
+          taskTypesById={taskTypesById}
+          statusColors={settings.statusColors}
+          onTasksChanged={refresh}
           onClose={() => setEditingIdea(null)}
           onSave={handleUpdate}
           onDelete={handleDelete}

@@ -1,17 +1,24 @@
 import { useMemo, useState, type FormEvent, type ReactElement } from 'react'
-import { IDEA_STATUSES } from '@shared/types'
+import { DEFAULT_STATUS_COLORS, IDEA_STATUSES } from '@shared/types'
 import type {
+  IdeaStatus,
   OwnedObject,
   PublishedVideo,
   Series,
   Tag,
+  Task,
+  TaskInput,
+  TaskType,
   VideoIdea,
   VideoIdeaInput
 } from '@shared/types'
 import { SearchablePicker } from '../../components/SearchablePicker'
 import { formatDate, toDateInputValue } from '../../lib/format'
+import { taskColor } from '../../lib/taskTypeColors'
+import { isTaskOverdue, sortTasksByPipeline } from '../../lib/taskUrgency'
 import { SeriesPicker } from '../series/SeriesPicker'
 import { TagPicker } from '../tags/TagPicker'
+import { TaskFormModal } from '../tasks/TaskFormModal'
 
 interface IdeaFormModalProps {
   idea: VideoIdea | null
@@ -23,6 +30,11 @@ interface IdeaFormModalProps {
   unlinkedVideos: PublishedVideo[]
   ruleMissingObjectsPreparation?: boolean
   defaultSeriesId?: number | null
+  tasks?: Task[]
+  taskTypes?: TaskType[]
+  taskTypesById?: Map<number, TaskType>
+  statusColors?: Record<IdeaStatus, string>
+  onTasksChanged?: () => void
   onClose: () => void
   onSave: (input: VideoIdeaInput) => void
   onDelete?: () => void
@@ -42,6 +54,11 @@ export function IdeaFormModal({
   unlinkedVideos,
   ruleMissingObjectsPreparation = true,
   defaultSeriesId = null,
+  tasks = [],
+  taskTypes = [],
+  taskTypesById = new Map(),
+  statusColors = DEFAULT_STATUS_COLORS,
+  onTasksChanged,
   onClose,
   onSave,
   onDelete,
@@ -61,9 +78,30 @@ export function IdeaFormModal({
   const [seriesId, setSeriesId] = useState<number | null>(idea?.seriesId ?? defaultSeriesId)
   const [titleError, setTitleError] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
 
   function toggleObject(id: number): void {
     setObjectIds((prev) => (prev.includes(id) ? prev.filter((o) => o !== id) : [...prev, id]))
+  }
+
+  const pendingTasks = useMemo(() => {
+    if (!idea) return []
+    const linked = tasks.filter((t) => t.status === 'pending' && t.ideaIds.includes(idea.id))
+    return sortTasksByPipeline(linked, taskTypesById)
+  }, [idea, tasks, taskTypesById])
+
+  async function handleTaskSave(input: TaskInput): Promise<void> {
+    if (!editingTask) return
+    await window.api.tasks.update(editingTask.id, input)
+    setEditingTask(null)
+    onTasksChanged?.()
+  }
+
+  async function handleTaskDelete(): Promise<void> {
+    if (!editingTask) return
+    await window.api.tasks.remove(editingTask.id)
+    setEditingTask(null)
+    onTasksChanged?.()
   }
 
   const missingObjects = useMemo(() => {
@@ -254,6 +292,53 @@ export function IdeaFormModal({
               </div>
             )}
 
+            {idea && pendingTasks.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1">
+                  Tâches en attente
+                </label>
+                <div className="space-y-1.5">
+                  {pendingTasks.map((task) => {
+                    const overdue = isTaskOverdue(task)
+                    const color = taskColor(task, taskTypesById, statusColors)
+                    const types = task.typeIds
+                      .map((id) => taskTypesById.get(id))
+                      .filter((t): t is TaskType => !!t)
+                    return (
+                      <button
+                        type="button"
+                        key={task.id}
+                        onClick={() => setEditingTask(task)}
+                        style={
+                          overdue
+                            ? { borderColor: '#ef444466', backgroundColor: '#ef44440f' }
+                            : { borderColor: `${color}40`, backgroundColor: `${color}14` }
+                        }
+                        className="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-xs hover:brightness-125"
+                      >
+                        <span>{task.emoji || '✅'}</span>
+                        <span
+                          className={`flex-1 truncate ${overdue ? 'text-red-300' : 'text-gray-200'}`}
+                        >
+                          {task.title}
+                        </span>
+                        {types.map((t) => (
+                          <span key={t.id} className="shrink-0 text-gray-500">
+                            {t.emoji} {t.name}
+                          </span>
+                        ))}
+                        {task.dueDate && (
+                          <span className="shrink-0 text-gray-500">
+                            📅 {formatDate(task.dueDate)}
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1">Tags</label>
               <TagPicker
@@ -348,6 +433,18 @@ export function IdeaFormModal({
           </button>
         </div>
       </form>
+
+      {editingTask && (
+        <TaskFormModal
+          task={editingTask}
+          taskTypes={taskTypes}
+          ideas={existingIdeas}
+          onClose={() => setEditingTask(null)}
+          onSave={handleTaskSave}
+          onDelete={handleTaskDelete}
+          onTaskTypesChanged={() => onTasksChanged?.()}
+        />
+      )}
     </div>
   )
 }

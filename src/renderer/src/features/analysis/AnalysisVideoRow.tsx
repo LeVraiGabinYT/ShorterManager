@@ -8,13 +8,15 @@ interface AnalysisVideoRowProps {
   tagsById: Map<number, Tag>
   selected: boolean
   onToggle: () => void
+  trailingAction?: ReactElement
 }
 
 export function AnalysisVideoRow({
   video,
   tagsById,
   selected,
-  onToggle
+  onToggle,
+  trailingAction
 }: AnalysisVideoRowProps): ReactElement {
   const tags = video.tagIds.map((id) => tagsById.get(id)).filter(Boolean) as Tag[]
 
@@ -54,6 +56,17 @@ export function AnalysisVideoRow({
             </span>
           ))}
         </div>
+      )}
+      {trailingAction && (
+        <span
+          className="shrink-0"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+        >
+          {trailingAction}
+        </span>
       )}
     </label>
   )

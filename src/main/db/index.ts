@@ -111,6 +111,38 @@ function migrate(database: Database.Database): void {
       stats_fetched_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS task_types (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      emoji TEXT NOT NULL DEFAULT '📌',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      emoji TEXT,
+      due_date TEXT,
+      due_time TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      auto_generated INTEGER NOT NULL DEFAULT 0,
+      auto_key TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS task_type_links (
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      task_type_id INTEGER NOT NULL REFERENCES task_types(id) ON DELETE CASCADE,
+      PRIMARY KEY (task_id, task_type_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS task_ideas (
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      idea_id INTEGER NOT NULL REFERENCES ideas(id) ON DELETE CASCADE,
+      PRIMARY KEY (task_id, idea_id)
+    );
+
   `)
 
   ensureColumn(database, 'objects', 'purchased', 'INTEGER NOT NULL DEFAULT 0')
@@ -127,4 +159,24 @@ function migrate(database: Database.Database): void {
     DROP TABLE IF EXISTS analysis_group_videos;
     DROP TABLE IF EXISTS analysis_groups;
   `)
+
+  seedDefaultTaskTypes(database)
+}
+
+// Seeded once, only if the table is empty — the user can rename or delete these afterwards like
+// any other task type, this just gives them a sensible starting point.
+function seedDefaultTaskTypes(database: Database.Database): void {
+  const { count } = database.prepare('SELECT COUNT(*) as count FROM task_types').get() as {
+    count: number
+  }
+  if (count > 0) return
+
+  const insert = database.prepare('INSERT INTO task_types (name, emoji) VALUES (?, ?)')
+  const defaults: [string, string][] = [
+    ['Achat', '🛒'],
+    ['Tournage', '🎬'],
+    ['Montage', '🎞️'],
+    ['Publication', '📤']
+  ]
+  for (const [name, emoji] of defaults) insert.run(name, emoji)
 }

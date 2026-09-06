@@ -23,6 +23,7 @@ interface PlanningColumnProps {
   statusColors: Record<IdeaStatus, string>
   showTags: boolean
   ruleMissingObjectsPreparation: boolean
+  pendingTaskCountByIdeaId: Map<number, number>
   color: string
   onSelect: (idea: VideoIdea) => void
 }
@@ -37,6 +38,7 @@ function PlanningColumn({
   statusColors,
   showTags,
   ruleMissingObjectsPreparation,
+  pendingTaskCountByIdeaId,
   color,
   onSelect
 }: PlanningColumnProps): ReactElement {
@@ -62,6 +64,7 @@ function PlanningColumn({
               statusColors={statusColors}
               showTags={showTags}
               ruleMissingObjectsPreparation={ruleMissingObjectsPreparation}
+              pendingTaskCount={pendingTaskCountByIdeaId.get(idea.id) ?? 0}
               onClick={() => onSelect(idea)}
             />
           ))
@@ -82,6 +85,10 @@ export function PlanningsTab(): ReactElement {
     seriesById,
     publishedVideos,
     publishedVideosByIdeaId,
+    tasks,
+    taskTypes,
+    taskTypesById,
+    pendingTaskCountByIdeaId,
     settings,
     loading,
     refresh
@@ -173,6 +180,7 @@ export function PlanningsTab(): ReactElement {
               statusColors={settings.statusColors}
               showTags={settings.showTagsOnIdeaCard}
               ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
+              pendingTaskCountByIdeaId={pendingTaskCountByIdeaId}
               color={overviewSectionColor('shooting', settings.statusColors)}
               onSelect={setSelectedIdea}
             />
@@ -186,6 +194,7 @@ export function PlanningsTab(): ReactElement {
               statusColors={settings.statusColors}
               showTags={settings.showTagsOnIdeaCard}
               ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
+              pendingTaskCountByIdeaId={pendingTaskCountByIdeaId}
               color={overviewSectionColor('toSchedule', settings.statusColors)}
               onSelect={setSelectedIdea}
             />
@@ -202,6 +211,11 @@ export function PlanningsTab(): ReactElement {
           existingIdeas={ideas}
           linkedVideo={publishedVideosByIdeaId.get(selectedIdea.id) ?? null}
           unlinkedVideos={unlinkedVideos}
+          tasks={tasks}
+          taskTypes={taskTypes}
+          taskTypesById={taskTypesById}
+          statusColors={settings.statusColors}
+          onTasksChanged={refresh}
           onClose={() => setSelectedIdea(null)}
           onSave={handleUpdate}
           onDelete={handleDelete}

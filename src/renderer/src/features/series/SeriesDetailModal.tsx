@@ -5,6 +5,8 @@ import type {
   PublishedVideo,
   Series,
   Tag,
+  Task,
+  TaskType,
   VideoIdea,
   VideoIdeaInput
 } from '@shared/types'
@@ -75,6 +77,10 @@ interface SeriesDetailModalProps {
   statusColors: Record<IdeaStatus, string>
   showTags: boolean
   ruleMissingObjectsPreparation: boolean
+  pendingTaskCountByIdeaId: Map<number, number>
+  tasks: Task[]
+  taskTypes: TaskType[]
+  taskTypesById: Map<number, TaskType>
   onClose: () => void
   onRename: (name: string) => Promise<void>
   onEmojiChange: (emoji: string) => Promise<void>
@@ -96,6 +102,10 @@ export function SeriesDetailModal({
   statusColors,
   showTags,
   ruleMissingObjectsPreparation,
+  pendingTaskCountByIdeaId,
+  tasks,
+  taskTypes,
+  taskTypesById,
   onClose,
   onRename,
   onEmojiChange,
@@ -271,6 +281,7 @@ export function SeriesDetailModal({
                     statusColors={statusColors}
                     showTags={showTags}
                     ruleMissingObjectsPreparation={ruleMissingObjectsPreparation}
+                    pendingTaskCount={pendingTaskCountByIdeaId.get(idea.id) ?? 0}
                     onClick={() => setEditingIdea(idea)}
                     trailingAction={
                       <RemoveEpisodeAction onRemove={() => handleRemoveFromSeries(idea)} />
@@ -342,6 +353,11 @@ export function SeriesDetailModal({
           existingIdeas={allIdeas}
           linkedVideo={publishedVideosByIdeaId.get(editingIdea.id) ?? null}
           unlinkedVideos={unlinkedVideos}
+          tasks={tasks}
+          taskTypes={taskTypes}
+          taskTypesById={taskTypesById}
+          statusColors={statusColors}
+          onTasksChanged={refresh}
           ruleMissingObjectsPreparation={ruleMissingObjectsPreparation}
           onClose={() => setEditingIdea(null)}
           onSave={handleUpdateIdea}

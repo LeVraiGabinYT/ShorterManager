@@ -59,6 +59,10 @@ export function SeriesTab(): ReactElement {
     series,
     publishedVideos,
     publishedVideosByIdeaId,
+    tasks,
+    taskTypes,
+    taskTypesById,
+    pendingTaskCountByIdeaId,
     settings,
     loading,
     refresh
@@ -170,6 +174,10 @@ export function SeriesTab(): ReactElement {
           statusColors={settings.statusColors}
           showTags={settings.showTagsOnIdeaCard}
           ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
+          pendingTaskCountByIdeaId={pendingTaskCountByIdeaId}
+          tasks={tasks}
+          taskTypes={taskTypes}
+          taskTypesById={taskTypesById}
           onClose={() => setOpenSeriesId(null)}
           onRename={(name) => handleRename(openSeries, name)}
           onEmojiChange={(emoji) => handleEmojiChange(openSeries, emoji)}

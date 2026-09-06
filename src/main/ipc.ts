@@ -20,6 +20,16 @@ import {
   updateSeriesEmoji
 } from './db/series'
 import { createTag, listTags, removeTag, updateTag } from './db/tags'
+import {
+  createTask,
+  listTasks,
+  removeTask,
+  removeTasks,
+  rescheduleTask,
+  setTaskStatus,
+  updateTask
+} from './db/tasks'
+import { createTaskType, listTaskTypes, removeTaskType } from './db/taskTypes'
 import { mergeDuplicateIdeas } from './dedupe'
 import {
   exportSettings,
@@ -42,6 +52,9 @@ import type {
   BackupMode,
   OwnedObjectInput,
   TagInput,
+  TaskInput,
+  TaskStatus,
+  TaskTypeInput,
   VideoIdeaInput
 } from '../shared/types'
 
@@ -107,6 +120,24 @@ export function registerIpcHandlers(): void {
     updateSeriesEmoji(id, emoji)
   )
   ipcMain.handle('series:remove', (_event, id: number) => removeSeries(id))
+
+  ipcMain.handle('taskTypes:list', () => listTaskTypes())
+  ipcMain.handle('taskTypes:create', (_event, input: TaskTypeInput) => createTaskType(input))
+  ipcMain.handle('taskTypes:remove', (_event, id: number) => removeTaskType(id))
+
+  ipcMain.handle('tasks:list', () => listTasks())
+  ipcMain.handle('tasks:create', (_event, input: TaskInput) => createTask(input))
+  ipcMain.handle('tasks:update', (_event, id: number, input: TaskInput) => updateTask(id, input))
+  ipcMain.handle('tasks:setStatus', (_event, id: number, status: TaskStatus) =>
+    setTaskStatus(id, status)
+  )
+  ipcMain.handle(
+    'tasks:reschedule',
+    (_event, id: number, dueDate: string | null, dueTime: string | null) =>
+      rescheduleTask(id, dueDate, dueTime)
+  )
+  ipcMain.handle('tasks:remove', (_event, id: number) => removeTask(id))
+  ipcMain.handle('tasks:removeMany', (_event, ids: number[]) => removeTasks(ids))
 
   ipcMain.handle('app:getInfo', () => getAppInfo())
 

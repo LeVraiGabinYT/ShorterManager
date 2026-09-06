@@ -1,23 +1,13 @@
-import { useMemo, useState, type ReactElement } from 'react'
-import type { PublishedVideo } from '@shared/types'
+import { useEffect, useMemo, useState, type ReactElement } from 'react'
 import { useIdeasData } from '../../hooks/useIdeasData'
-import {
-  EMPTY_CRITERION,
-  ideaMatchesCriterion,
-  isCriterionSet,
-  videoMatchesCriterion,
-  type Criterion
-} from '../../lib/analysisFilters'
 import { computeVideoStats } from '../../lib/videoStats'
-import { AnalysisVideoRow } from './AnalysisVideoRow'
+import { AddVideosModal } from './AddVideosModal'
 import { ComparisonChart } from './ComparisonChart'
-import { CriterionPicker } from './CriterionPicker'
 import { DatasetBarChart } from './DatasetBarChart'
-import { EvolutionChart, type TimelineEntry } from './EvolutionChart'
+import { GroupEvolutionChart } from './GroupEvolutionChart'
+import { GroupVideosPanel } from './GroupVideosPanel'
 import { StatsSummary } from './StatsSummary'
 import { TagTrendsPanel } from './TagTrendsPanel'
-import { SearchablePicker } from '../../components/SearchablePicker'
-import { formatDate } from '../../lib/format'
 
 const DISPLAY_MODES = [
   { id: 'dataset', label: 'Jeu de données' },
@@ -27,162 +17,160 @@ const DISPLAY_MODES = [
 ] as const
 
 type DisplayMode = (typeof DISPLAY_MODES)[number]['id']
+type GroupId = 'blue' | 'orange'
 
-function criterionLabel(
-  criterion: Criterion,
-  tagsById: Map<number, { name: string }>,
-  objectsById: Map<number, { name: string }>,
-  seriesById: Map<number, { name: string }>
-): string {
-  if (!isCriterionSet(criterion)) return '—'
-  if (criterion.type === 'tag') return tagsById.get(Number(criterion.value))?.name ?? '—'
-  if (criterion.type === 'object') return objectsById.get(Number(criterion.value))?.name ?? '—'
-  if (criterion.type === 'series') return seriesById.get(Number(criterion.value))?.name ?? '—'
-  return `« ${criterion.value} »`
+const STORAGE_KEY = 'analysisTab.groups'
+
+interface StoredGroups {
+  blue: string[]
+  orange: string[]
+  displayMode: DisplayMode
+}
+
+// Remembers the two groups (and which view was active) across tab switches — a video id that
+// later disappears (deleted, wiped, replaced from a backup) is just quietly dropped rather than
+// ever crashing anything, since every consumer already filters ids against the live video list.
+function loadStoredGroups(): StoredGroups {
+  const fallback: StoredGroups = { blue: [], orange: [], displayMode: 'dataset' }
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return fallback
+    const parsed = JSON.parse(raw) as Partial<StoredGroups> | null
+    if (!parsed || typeof parsed !== 'object') return fallback
+
+    const toStringArray = (value: unknown): string[] =>
+      Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : []
+
+    const displayMode = DISPLAY_MODES.some((m) => m.id === parsed.displayMode)
+      ? (parsed.displayMode as DisplayMode)
+      : fallback.displayMode
+
+    return { blue: toStringArray(parsed.blue), orange: toStringArray(parsed.orange), displayMode }
+  } catch {
+    return fallback
+  }
 }
 
 export function AnalysisTab(): ReactElement {
-  const {
-    ideas,
-    ideasById,
-    tags,
-    objects,
-    series,
-    tagsById,
-    objectsById,
-    seriesById,
-    publishedVideos
-  } = useIdeasData()
-  const [displayMode, setDisplayMode] = useState<DisplayMode>('dataset')
-
-  // Dataset mode state
-  const [datasetVideoIds, setDatasetVideoIds] = useState<Set<string>>(new Set())
-  const [selectedInDataset, setSelectedInDataset] = useState<Set<string>>(new Set())
-  const [keywordInput, setKeywordInput] = useState('')
-
-  // Evolution mode state
-  const [evolutionCriterion, setEvolutionCriterion] = useState<Criterion>(EMPTY_CRITERION)
-
-  // Comparison mode state
-  const [criterionA, setCriterionA] = useState<Criterion>(EMPTY_CRITERION)
-  const [criterionB, setCriterionB] = useState<Criterion>({ type: 'tag', value: '' })
-
-  const datasetVideos = useMemo(
-    () => publishedVideos.filter((v) => datasetVideoIds.has(v.youtubeVideoId)),
-    [publishedVideos, datasetVideoIds]
+  const { ideasById, tags, objects, series, tagsById, publishedVideos, loading } = useIdeasData()
+  // Analyse only ever reasons about videos linked to an idea in the workspace — a video the
+  // channel fetched but nobody turned into an idea stays exclusive to the "Chaîne YouTube" tab,
+  // never leaking into groups, the add-video picker, or Tendances de chaîne on its own.
+  const linkedPublishedVideos = useMemo(
+    () => publishedVideos.filter((v) => v.ideaId !== null),
+    [publishedVideos]
   )
-  const datasetStats = useMemo(() => computeVideoStats(datasetVideos), [datasetVideos])
-  const availableForManualAdd = useMemo(
-    () => publishedVideos.filter((v) => !datasetVideoIds.has(v.youtubeVideoId)),
-    [publishedVideos, datasetVideoIds]
-  )
+  const [stored] = useState(loadStoredGroups)
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(stored.displayMode)
 
-  const evolutionEntries = useMemo<TimelineEntry[]>(() => {
-    if (!isCriterionSet(evolutionCriterion)) return []
+  const [blueVideoIds, setBlueVideoIds] = useState<Set<string>>(() => new Set(stored.blue))
+  const [orangeVideoIds, setOrangeVideoIds] = useState<Set<string>>(() => new Set(stored.orange))
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [addModalTarget, setAddModalTarget] = useState<GroupId | null>(null)
 
-    const linkedIdeaIds = new Set(
-      publishedVideos.map((v) => v.ideaId).filter((id): id is number => id !== null)
+  useEffect(() => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ blue: [...blueVideoIds], orange: [...orangeVideoIds], displayMode })
     )
+  }, [blueVideoIds, orangeVideoIds, displayMode])
 
-    const published: TimelineEntry[] = publishedVideos
-      .filter((v) => videoMatchesCriterion(v, evolutionCriterion, ideasById))
-      .map((v) => ({
-        key: `video-${v.youtubeVideoId}`,
-        date: v.publishedAt,
-        kind: 'published',
-        title: v.title ?? v.youtubeVideoId,
-        emoji: null,
-        viewCount: v.viewCount
-      }))
-
-    const production: TimelineEntry[] = ideas
-      .filter(
-        (idea) => ideaMatchesCriterion(idea, evolutionCriterion) && !linkedIdeaIds.has(idea.id)
-      )
-      .map((idea) => ({
-        key: `idea-${idea.id}`,
-        date: idea.publishDate ?? idea.shootDate,
-        kind: 'production',
-        title: idea.title,
-        emoji: idea.emoji,
-        viewCount: null
-      }))
-
-    return [...published, ...production].sort((a, b) => {
-      if (!a.date && !b.date) return 0
-      if (!a.date) return 1
-      if (!b.date) return -1
-      return b.date.localeCompare(a.date)
+  // Prunes ids that no longer correspond to a real video — only once the channel cache has
+  // actually finished loading, so we never wipe a restored group just because the initial fetch
+  // hasn't resolved yet.
+  useEffect(() => {
+    if (loading) return
+    const validIds = new Set(linkedPublishedVideos.map((v) => v.youtubeVideoId))
+    setBlueVideoIds((prev) => {
+      const filtered = [...prev].filter((id) => validIds.has(id))
+      return filtered.length === prev.size ? prev : new Set(filtered)
     })
-  }, [evolutionCriterion, publishedVideos, ideas, ideasById])
+    setOrangeVideoIds((prev) => {
+      const filtered = [...prev].filter((id) => validIds.has(id))
+      return filtered.length === prev.size ? prev : new Set(filtered)
+    })
+  }, [loading, linkedPublishedVideos])
 
-  const statsA = useMemo(
-    () =>
-      computeVideoStats(
-        publishedVideos.filter((v) => videoMatchesCriterion(v, criterionA, ideasById))
-      ),
-    [publishedVideos, criterionA, ideasById]
+  const blueVideos = useMemo(
+    () => linkedPublishedVideos.filter((v) => blueVideoIds.has(v.youtubeVideoId)),
+    [linkedPublishedVideos, blueVideoIds]
   )
-  const statsB = useMemo(
-    () =>
-      computeVideoStats(
-        publishedVideos.filter((v) => videoMatchesCriterion(v, criterionB, ideasById))
-      ),
-    [publishedVideos, criterionB, ideasById]
+  const orangeVideos = useMemo(
+    () => linkedPublishedVideos.filter((v) => orangeVideoIds.has(v.youtubeVideoId)),
+    [linkedPublishedVideos, orangeVideoIds]
   )
+  const blueStats = useMemo(() => computeVideoStats(blueVideos), [blueVideos])
+  const orangeStats = useMemo(() => computeVideoStats(orangeVideos), [orangeVideos])
 
-  function addVideosToDataset(videos: PublishedVideo[]): void {
-    setDatasetVideoIds((prev) => new Set([...prev, ...videos.map((v) => v.youtubeVideoId)]))
-  }
-
-  function handleAddByTag(tagId: number): void {
-    addVideosToDataset(publishedVideos.filter((v) => v.tagIds.includes(tagId)))
-  }
-
-  function handleAddByObject(objectId: number): void {
-    addVideosToDataset(
-      publishedVideos.filter((v) =>
-        videoMatchesCriterion(v, { type: 'object', value: String(objectId) }, ideasById)
-      )
-    )
-  }
-
-  function handleAddBySeries(seriesId: number): void {
-    addVideosToDataset(
-      publishedVideos.filter((v) =>
-        videoMatchesCriterion(v, { type: 'series', value: String(seriesId) }, ideasById)
-      )
-    )
-  }
-
-  function handleAddByKeyword(): void {
-    const keyword = keywordInput.trim()
-    if (!keyword) return
-    addVideosToDataset(
-      publishedVideos.filter((v) =>
-        videoMatchesCriterion(v, { type: 'keyword', value: keyword }, ideasById)
-      )
-    )
-    setKeywordInput('')
-  }
-
-  function toggleDatasetSelection(youtubeVideoId: string): void {
-    setSelectedInDataset((prev) => {
+  // A video only ever belongs to one group at a time — adding it to one side always pulls it out
+  // of the other, so "moving" and "adding" are the same operation under the hood.
+  function addToGroup(group: GroupId, videoIds: string[]): void {
+    const setter = group === 'blue' ? setBlueVideoIds : setOrangeVideoIds
+    const otherSetter = group === 'blue' ? setOrangeVideoIds : setBlueVideoIds
+    setter((prev) => new Set([...prev, ...videoIds]))
+    otherSetter((prev) => {
       const next = new Set(prev)
-      if (next.has(youtubeVideoId)) next.delete(youtubeVideoId)
-      else next.add(youtubeVideoId)
+      for (const id of videoIds) next.delete(id)
       return next
     })
   }
 
-  function handleRemoveSelected(): void {
-    setDatasetVideoIds((prev) => {
+  function clearFromSelection(videoIds: string[]): void {
+    setSelectedIds((prev) => {
       const next = new Set(prev)
-      for (const id of selectedInDataset) next.delete(id)
+      for (const id of videoIds) next.delete(id)
       return next
     })
-    setSelectedInDataset(new Set())
   }
+
+  function handleMoveOne(id: string, from: GroupId): void {
+    addToGroup(from === 'blue' ? 'orange' : 'blue', [id])
+    clearFromSelection([id])
+  }
+
+  function handleMoveSelected(from: GroupId): void {
+    const sourceIds = from === 'blue' ? blueVideoIds : orangeVideoIds
+    const idsToMove = [...selectedIds].filter((id) => sourceIds.has(id))
+    if (idsToMove.length === 0) return
+    addToGroup(from === 'blue' ? 'orange' : 'blue', idsToMove)
+    clearFromSelection(idsToMove)
+  }
+
+  function removeFromGroup(group: GroupId, videoIds: string[]): void {
+    const setter = group === 'blue' ? setBlueVideoIds : setOrangeVideoIds
+    setter((prev) => {
+      const next = new Set(prev)
+      for (const id of videoIds) next.delete(id)
+      return next
+    })
+    clearFromSelection(videoIds)
+  }
+
+  function handleRemoveOne(id: string, from: GroupId): void {
+    removeFromGroup(from, [id])
+  }
+
+  function handleRemoveSelected(from: GroupId): void {
+    const sourceIds = from === 'blue' ? blueVideoIds : orangeVideoIds
+    const idsToRemove = [...selectedIds].filter((id) => sourceIds.has(id))
+    if (idsToRemove.length === 0) return
+    removeFromGroup(from, idsToRemove)
+  }
+
+  function toggleSelect(id: string): void {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const availableForAdd = useMemo(() => {
+    if (addModalTarget === null) return []
+    const excludeIds = addModalTarget === 'blue' ? blueVideoIds : orangeVideoIds
+    return linkedPublishedVideos.filter((v) => !excludeIds.has(v.youtubeVideoId))
+  }, [addModalTarget, linkedPublishedVideos, blueVideoIds, orangeVideoIds])
 
   return (
     <div className="flex h-full flex-col">
@@ -190,15 +178,17 @@ export function AnalysisTab(): ReactElement {
         <h1 className="text-lg font-semibold text-gray-100">Analyse</h1>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 pb-6">
-        {publishedVideos.length === 0 ? (
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pb-6">
+        {linkedPublishedVideos.length === 0 ? (
           <p className="text-sm text-gray-500">
-            Aucune vidéo publiée en cache pour l’instant. Va dans l’onglet « Chaîne YouTube » et
-            actualise les vidéos avant de pouvoir les analyser.
+            Aucune vidéo publiée liée à une idée pour l’instant. Lie une vidéo publiée à une idée
+            (onglet « Idées » ou « Chaîne YouTube ») avant de pouvoir l’analyser ici.
           </p>
         ) : (
-          <div className="space-y-4">
-            <div className="flex gap-1 rounded-md border border-white/10 bg-white/5 p-1">
+          <div
+            className={`flex flex-col gap-4 ${displayMode === 'trends' ? 'min-h-0 flex-1' : ''}`}
+          >
+            <div className="flex shrink-0 gap-1 rounded-md border border-white/10 bg-white/5 p-1">
               {DISPLAY_MODES.map((mode) => (
                 <button
                   key={mode.id}
@@ -215,220 +205,83 @@ export function AnalysisTab(): ReactElement {
               ))}
             </div>
 
-            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-              {displayMode === 'dataset' && (
-                <div className="space-y-4">
-                  <DatasetBarChart videos={datasetVideos} />
-                  <StatsSummary stats={datasetStats} />
-                </div>
-              )}
-              {displayMode === 'evolution' && <EvolutionChart entries={evolutionEntries} />}
-              {displayMode === 'trends' && (
-                <TagTrendsPanel tags={tags} tagsById={tagsById} publishedVideos={publishedVideos} />
-              )}
-              {displayMode === 'comparison' && (
-                <div className="space-y-4">
-                  <ComparisonChart
-                    labelA={criterionLabel(criterionA, tagsById, objectsById, seriesById)}
-                    labelB={criterionLabel(criterionB, tagsById, objectsById, seriesById)}
-                    statsA={statsA}
-                    statsB={statsB}
-                  />
-                </div>
-              )}
-            </div>
-
-            {displayMode === 'dataset' && (
-              <div className="space-y-4">
+            {displayMode === 'trends' ? (
+              <div className="min-h-0 flex-1 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                <TagTrendsPanel
+                  tags={tags}
+                  tagsById={tagsById}
+                  publishedVideos={linkedPublishedVideos}
+                />
+              </div>
+            ) : (
+              <>
                 <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                  <h2 className="mb-2 text-sm font-medium text-gray-200">
-                    Ajouter des vidéos au jeu de données
-                  </h2>
-
-                  <div className="space-y-3">
-                    <div>
-                      <p className="mb-1 text-xs text-gray-500">Par tag</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {tags.map((tag) => (
-                          <button
-                            key={tag.id}
-                            type="button"
-                            onClick={() => handleAddByTag(tag.id)}
-                            className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-gray-300 hover:bg-white/10"
-                          >
-                            + {tag.name}
-                          </button>
-                        ))}
+                  {displayMode === 'dataset' && (
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      <div className="space-y-3">
+                        <h3 className="flex items-center gap-2 text-sm font-medium text-gray-200">
+                          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#3987e5]" />
+                          Groupe Bleu
+                        </h3>
+                        <DatasetBarChart videos={blueVideos} />
+                        <StatsSummary stats={blueStats} />
                       </div>
-                    </div>
-
-                    {objects.length > 0 && (
-                      <div>
-                        <p className="mb-1 text-xs text-gray-500">Par objet</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {objects.map((obj) => (
-                            <button
-                              key={obj.id}
-                              type="button"
-                              onClick={() => handleAddByObject(obj.id)}
-                              className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-gray-300 hover:bg-white/10"
-                            >
-                              + {obj.name}
-                            </button>
-                          ))}
-                        </div>
+                      <div className="space-y-3">
+                        <h3 className="flex items-center gap-2 text-sm font-medium text-gray-200">
+                          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#d95926]" />
+                          Groupe Orange
+                        </h3>
+                        <DatasetBarChart videos={orangeVideos} />
+                        <StatsSummary stats={orangeStats} />
                       </div>
-                    )}
-
-                    {series.length > 0 && (
-                      <div>
-                        <p className="mb-1 text-xs text-gray-500">Par série</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {series.map((s) => (
-                            <button
-                              key={s.id}
-                              type="button"
-                              onClick={() => handleAddBySeries(s.id)}
-                              className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-gray-300 hover:bg-white/10"
-                            >
-                              + {s.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <p className="mb-1 text-xs text-gray-500">Par mot-clé</p>
-                      <div className="flex gap-2">
-                        <input
-                          value={keywordInput}
-                          onChange={(e) => setKeywordInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault()
-                              handleAddByKeyword()
-                            }
-                          }}
-                          placeholder="Mot-clé dans le titre ou la description..."
-                          className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-gray-100 outline-none focus:border-blue-500/60"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleAddByKeyword}
-                          className="rounded-md border border-white/10 px-3 py-1.5 text-sm text-gray-300 hover:bg-white/5"
-                        >
-                          Ajouter
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="mb-1 text-xs text-gray-500">Vidéo précise</p>
-                      <SearchablePicker
-                        items={availableForManualAdd}
-                        getKey={(v) => v.youtubeVideoId}
-                        getLabel={(v) =>
-                          `${v.title ?? v.youtubeVideoId} (${formatDate(v.publishedAt)})`
-                        }
-                        onSelect={(v) => addVideosToDataset([v])}
-                        placeholder="Rechercher une vidéo par titre..."
-                        emptyLabel="Toutes les vidéos disponibles sont déjà dans le jeu de données."
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <h2 className="text-sm font-medium text-gray-200">
-                      Vidéos incluses ({datasetVideos.length})
-                    </h2>
-                    {selectedInDataset.size > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleRemoveSelected}
-                        className="text-xs text-red-400 hover:text-red-300"
-                      >
-                        Retirer la sélection ({selectedInDataset.size})
-                      </button>
-                    )}
-                  </div>
-
-                  {datasetVideos.length === 0 ? (
-                    <p className="text-sm text-gray-500">
-                      Aucune vidéo pour l’instant — ajoute-en avec les outils ci-dessus.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 px-1 text-xs text-gray-500">
-                        <input
-                          type="checkbox"
-                          checked={datasetVideos.every((v) =>
-                            selectedInDataset.has(v.youtubeVideoId)
-                          )}
-                          onChange={(e) =>
-                            setSelectedInDataset(
-                              e.target.checked
-                                ? new Set(datasetVideos.map((v) => v.youtubeVideoId))
-                                : new Set()
-                            )
-                          }
-                          className="h-4 w-4 rounded border-white/20 bg-white/5 accent-blue-600"
-                        />
-                        Tout sélectionner
-                      </label>
-                      {datasetVideos.map((video) => (
-                        <AnalysisVideoRow
-                          key={video.youtubeVideoId}
-                          video={video}
-                          tagsById={tagsById}
-                          selected={selectedInDataset.has(video.youtubeVideoId)}
-                          onToggle={() => toggleDatasetSelection(video.youtubeVideoId)}
-                        />
-                      ))}
                     </div>
                   )}
+
+                  {displayMode === 'evolution' && (
+                    <GroupEvolutionChart blueVideos={blueVideos} orangeVideos={orangeVideos} />
+                  )}
+
+                  {displayMode === 'comparison' && (
+                    <ComparisonChart
+                      labelA="Groupe Bleu"
+                      labelB="Groupe Orange"
+                      statsA={blueStats}
+                      statsB={orangeStats}
+                    />
+                  )}
                 </div>
-              </div>
-            )}
 
-            {displayMode === 'evolution' && (
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                <CriterionPicker
-                  label="Voir l’évolution de"
-                  tags={tags}
-                  objects={objects}
-                  series={series}
-                  value={evolutionCriterion}
-                  onChange={setEvolutionCriterion}
+                <GroupVideosPanel
+                  blueVideos={blueVideos}
+                  orangeVideos={orangeVideos}
+                  tagsById={tagsById}
+                  selectedIds={selectedIds}
+                  onToggleSelect={toggleSelect}
+                  onAddClick={setAddModalTarget}
+                  onMoveOne={handleMoveOne}
+                  onMoveSelected={handleMoveSelected}
+                  onRemoveOne={handleRemoveOne}
+                  onRemoveSelected={handleRemoveSelected}
                 />
-              </div>
-            )}
-
-            {displayMode === 'comparison' && (
-              <div className="grid grid-cols-1 gap-4 rounded-lg border border-white/10 bg-white/[0.03] p-4 sm:grid-cols-2">
-                <CriterionPicker
-                  label="A"
-                  tags={tags}
-                  objects={objects}
-                  series={series}
-                  value={criterionA}
-                  onChange={setCriterionA}
-                />
-                <CriterionPicker
-                  label="B"
-                  tags={tags}
-                  objects={objects}
-                  series={series}
-                  value={criterionB}
-                  onChange={setCriterionB}
-                />
-              </div>
+              </>
             )}
           </div>
         )}
       </div>
+
+      {addModalTarget && (
+        <AddVideosModal
+          targetGroup={addModalTarget}
+          availableVideos={availableForAdd}
+          tags={tags}
+          objects={objects}
+          series={series}
+          tagsById={tagsById}
+          ideasById={ideasById}
+          onAdd={(videoIds) => addToGroup(addModalTarget, videoIds)}
+          onClose={() => setAddModalTarget(null)}
+        />
+      )}
     </div>
   )
 }

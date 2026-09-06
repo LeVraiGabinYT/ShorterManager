@@ -6,6 +6,9 @@ import type {
   OwnedObjectInput,
   ShorterManagerApi,
   TagInput,
+  TaskInput,
+  TaskStatus,
+  TaskTypeInput,
   VideoIdeaInput
 } from '../shared/types'
 
@@ -52,6 +55,22 @@ const api: ShorterManagerApi = {
     rename: (id: number, name: string) => ipcRenderer.invoke('series:rename', id, name),
     updateEmoji: (id: number, emoji: string) => ipcRenderer.invoke('series:updateEmoji', id, emoji),
     remove: (id: number) => ipcRenderer.invoke('series:remove', id)
+  },
+  taskTypes: {
+    list: () => ipcRenderer.invoke('taskTypes:list'),
+    create: (input: TaskTypeInput) => ipcRenderer.invoke('taskTypes:create', input),
+    remove: (id: number) => ipcRenderer.invoke('taskTypes:remove', id)
+  },
+  tasks: {
+    list: () => ipcRenderer.invoke('tasks:list'),
+    create: (input: TaskInput) => ipcRenderer.invoke('tasks:create', input),
+    update: (id: number, input: TaskInput) => ipcRenderer.invoke('tasks:update', id, input),
+    setStatus: (id: number, status: TaskStatus) =>
+      ipcRenderer.invoke('tasks:setStatus', id, status),
+    reschedule: (id: number, dueDate: string | null, dueTime: string | null) =>
+      ipcRenderer.invoke('tasks:reschedule', id, dueDate, dueTime),
+    remove: (id: number) => ipcRenderer.invoke('tasks:remove', id),
+    removeMany: (ids: number[]) => ipcRenderer.invoke('tasks:removeMany', ids)
   },
   app: {
     getInfo: () => ipcRenderer.invoke('app:getInfo')
