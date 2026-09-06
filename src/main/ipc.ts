@@ -29,7 +29,7 @@ import {
   setTaskStatus,
   updateTask
 } from './db/tasks'
-import { createTaskType, listTaskTypes, removeTaskType } from './db/taskTypes'
+import { createTaskType, listTaskTypes, removeTaskType, reorderTaskTypes } from './db/taskTypes'
 import { mergeDuplicateIdeas } from './dedupe'
 import {
   exportSettings,
@@ -123,6 +123,9 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('taskTypes:list', () => listTaskTypes())
   ipcMain.handle('taskTypes:create', (_event, input: TaskTypeInput) => createTaskType(input))
+  ipcMain.handle('taskTypes:reorder', (_event, orderedIds: number[]) =>
+    reorderTaskTypes(orderedIds)
+  )
   ipcMain.handle('taskTypes:remove', (_event, id: number) => removeTaskType(id))
 
   ipcMain.handle('tasks:list', () => listTasks())

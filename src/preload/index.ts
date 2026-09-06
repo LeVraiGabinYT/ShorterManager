@@ -59,6 +59,7 @@ const api: ShorterManagerApi = {
   taskTypes: {
     list: () => ipcRenderer.invoke('taskTypes:list'),
     create: (input: TaskTypeInput) => ipcRenderer.invoke('taskTypes:create', input),
+    reorder: (orderedIds: number[]) => ipcRenderer.invoke('taskTypes:reorder', orderedIds),
     remove: (id: number) => ipcRenderer.invoke('taskTypes:remove', id)
   },
   tasks: {

@@ -13,16 +13,20 @@ import type {
   VideoIdeaInput
 } from '@shared/types'
 import { useIdeasData } from '../../hooks/useIdeasData'
-import { formatDate, formatPrice, formatRelativeTime } from '../../lib/format'
+import { formatPrice, formatRelativeTime, formatDate } from '../../lib/format'
 import { getEffectiveStatus } from '../../lib/ideaStatus'
 import { ideaUrgencyDate, objectsToBuy, sortByUrgency, type ObjectToBuy } from '../../lib/priority'
 import { overviewSectionColor } from '../../lib/sectionColors'
-import { taskColor } from '../../lib/taskTypeColors'
-import { isTaskOverdue, sortTasksByUrgency } from '../../lib/taskUrgency'
+import {
+  conflictsByTaskId,
+  findWorkflowConflicts,
+  sortTasksForDisplay
+} from '../../lib/taskWorkflow'
 import { IdeaFormModal } from '../ideas/IdeaFormModal'
 import { IdeaListRow } from '../ideas/IdeaListRow'
 import { ObjectFormModal } from '../objects/ObjectFormModal'
 import { TaskFormModal } from '../tasks/TaskFormModal'
+import { TaskRow } from '../tasks/TaskRow'
 
 const IN_PROGRESS_STATUSES: IdeaStatus[] = ['preparation', 'shooting', 'editing', 'ready']
 
@@ -39,20 +43,42 @@ interface StatCardProps {
   subtext?: string
   color: string
   capitalizeValue?: boolean
+  navigateLabel?: string
+  onNavigate?: () => void
 }
 
-function StatCard({ label, value, subtext, color, capitalizeValue }: StatCardProps): ReactElement {
+function StatCard({
+  label,
+  value,
+  subtext,
+  color,
+  capitalizeValue,
+  navigateLabel,
+  onNavigate
+}: StatCardProps): ReactElement {
   return (
     <div
       style={{ backgroundColor: `${color}14`, borderColor: `${color}40` }}
       className="rounded-lg border p-4"
     >
-      <p
-        className={`text-3xl font-semibold ${capitalizeValue ? 'capitalize' : ''}`}
-        style={{ color }}
-      >
-        {value}
-      </p>
+      <div className="flex items-start justify-between gap-2">
+        <p
+          className={`text-3xl font-semibold ${capitalizeValue ? 'capitalize' : ''}`}
+          style={{ color }}
+        >
+          {value}
+        </p>
+        {onNavigate && (
+          <button
+            type="button"
+            onClick={onNavigate}
+            className="mt-1 flex shrink-0 items-center gap-1 text-xs font-medium text-gray-400 hover:text-gray-200"
+          >
+            {navigateLabel}
+            <span aria-hidden>→</span>
+          </button>
+        )}
+      </div>
       <p className="mt-1 text-sm text-gray-400">{label}</p>
       {subtext && <p className="mt-0.5 text-xs text-gray-500">{subtext}</p>}
     </div>
@@ -195,73 +221,91 @@ function ObjectsToBuySection({
 interface TasksSectionProps {
   tasks: Task[]
   taskTypesById: Map<number, TaskType>
+  ideasById: Map<number, VideoIdea>
   statusColors: Record<IdeaStatus, string>
+  conflictsById: Map<number, Task[]>
   color: string
-  onSelect: (task: Task) => void
+  onEdit: (task: Task) => void
+  onOpenIdea: (idea: VideoIdea) => void
+  onToggleDone: (taskId: number, done: boolean) => void
+  onReschedule: (taskId: number, date: string, time: string) => void
+  onCancel: (taskId: number) => void
+  onDelete: (taskId: number) => void
+  onNavigateToTasks: () => void
 }
 
+// Identical rendering to the Tâches "Liste" page (same TaskRow component) — a task looks and
+// behaves the same whether you're checking it off from here or from the dedicated tab.
 function TasksSection({
   tasks,
   taskTypesById,
+  ideasById,
   statusColors,
+  conflictsById,
   color,
-  onSelect
+  onEdit,
+  onOpenIdea,
+  onToggleDone,
+  onReschedule,
+  onCancel,
+  onDelete,
+  onNavigateToTasks
 }: TasksSectionProps): ReactElement {
   return (
     <div
       style={{ backgroundColor: `${color}14`, borderColor: `${color}40` }}
-      className="rounded-lg border"
+      className="rounded-lg border p-2"
     >
-      <h2 className="px-4 pt-3 pb-2 text-sm font-medium text-gray-200">
-        Tâches à faire ({tasks.length})
-      </h2>
+      <div className="flex items-center justify-between px-2 pt-1 pb-2">
+        <h2 className="text-sm font-medium text-gray-200">Tâches du jour ({tasks.length})</h2>
+        <button
+          type="button"
+          onClick={onNavigateToTasks}
+          className="flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-gray-200"
+        >
+          Voir les tâches
+          <span aria-hidden>→</span>
+        </button>
+      </div>
       {tasks.length === 0 ? (
-        <p className="px-4 pb-4 text-sm text-gray-500">Aucune tâche en attente.</p>
+        <p className="px-2 pb-2 text-sm text-gray-500">Rien à faire aujourd’hui.</p>
       ) : (
-        <div className="border-t border-white/10">
-          {tasks.map((task) => {
-            const overdue = isTaskOverdue(task)
-            const types = task.typeIds
-              .map((id) => taskTypesById.get(id))
-              .filter((t): t is TaskType => !!t)
-            const rowColor = taskColor(task, taskTypesById, statusColors)
-            return (
-              <div
-                key={task.id}
-                onClick={() => onSelect(task)}
-                style={overdue ? undefined : { borderLeft: `3px solid ${rowColor}` }}
-                className={`flex w-full cursor-pointer items-center gap-3 border-b border-white/5 px-4 py-3 transition-colors last:border-b-0 hover:bg-white/[0.04] ${overdue ? 'border-l-[3px] border-l-red-500/70' : ''}`}
-              >
-                <span className="text-lg">{task.emoji || '✅'}</span>
-                <div className="min-w-0 flex-1">
-                  <span className="truncate font-medium text-gray-100">{task.title}</span>
-                  <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-gray-500">
-                    {task.dueDate && (
-                      <span className={overdue ? 'font-medium text-red-300' : ''}>
-                        📅 {formatDate(task.dueDate)}
-                        {task.dueTime ? ` à ${task.dueTime}` : ''}
-                      </span>
-                    )}
-                    {types.map((t) => (
-                      <span key={t.id}>
-                        {t.emoji} {t.name}
-                      </span>
-                    ))}
-                  </p>
-                </div>
-              </div>
-            )
-          })}
+        <div className="space-y-2">
+          {tasks.map((task) => (
+            <TaskRow
+              key={task.id}
+              task={task}
+              taskTypesById={taskTypesById}
+              ideasById={ideasById}
+              statusColors={statusColors}
+              conflicts={conflictsById.get(task.id) ?? []}
+              onToggleDone={(done) => onToggleDone(task.id, done)}
+              onEdit={() => onEdit(task)}
+              onOpenIdea={onOpenIdea}
+              onReschedule={(date, time) => onReschedule(task.id, date, time)}
+              onCancel={() => onCancel(task.id)}
+              onDelete={() => onDelete(task.id)}
+            />
+          ))}
         </div>
       )}
     </div>
   )
 }
 
-export function OverviewTab(): ReactElement {
+interface OverviewTabProps {
+  onNavigateToTasks: () => void
+  onNavigateToIdeas: () => void
+  onNavigateToInProgress: () => void
+}
+
+export function OverviewTab({
+  onNavigateToTasks,
+  onNavigateToIdeas,
+  onNavigateToInProgress
+}: OverviewTabProps): ReactElement {
   const {
     ideas,
-    ideasById,
     objects,
     objectsById,
     tags,
@@ -273,6 +317,7 @@ export function OverviewTab(): ReactElement {
     tasks,
     taskTypes,
     taskTypesById,
+    ideasById,
     pendingTaskCountByIdeaId,
     settings,
     loading,
@@ -365,14 +410,19 @@ export function OverviewTab(): ReactElement {
 
   const objectsNeeded = useMemo(() => objectsToBuy(objects, ideas), [objects, ideas])
 
-  const pendingTasks = useMemo(
-    () =>
-      sortTasksByUrgency(
-        tasks.filter((t) => t.status === 'pending'),
-        taskTypesById,
-        ideasById
-      ),
-    [tasks, taskTypesById, ideasById]
+  // Vue d'ensemble only ever shows what's due today or already overdue — everything further out
+  // stays on the dedicated Tâches page so this section doesn't get cluttered with future work.
+  const pendingTasks = useMemo(() => {
+    const now = new Date()
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    return sortTasksForDisplay(
+      tasks.filter((t) => t.status === 'pending' && t.dueDate !== null && t.dueDate <= todayStr),
+      taskTypesById
+    )
+  }, [tasks, taskTypesById])
+  const conflictsById = useMemo(
+    () => conflictsByTaskId(findWorkflowConflicts(tasks, taskTypesById)),
+    [tasks, taskTypesById]
   )
 
   const sectionElements: Record<OverviewSectionId, ReactElement> = {
@@ -468,9 +518,17 @@ export function OverviewTab(): ReactElement {
       <TasksSection
         tasks={pendingTasks}
         taskTypesById={taskTypesById}
+        ideasById={ideasById}
         statusColors={settings.statusColors}
+        conflictsById={conflictsById}
         color={overviewSectionColor('tasks', settings.statusColors)}
-        onSelect={setEditingTask}
+        onEdit={setEditingTask}
+        onOpenIdea={setSelectedIdea}
+        onToggleDone={handleToggleTaskDone}
+        onReschedule={handleRescheduleTask}
+        onCancel={handleCancelTask}
+        onDelete={handleDeleteTaskById}
+        onNavigateToTasks={onNavigateToTasks}
       />
     )
   }
@@ -542,6 +600,26 @@ export function OverviewTab(): ReactElement {
     await refresh()
   }
 
+  async function handleDeleteTaskById(taskId: number): Promise<void> {
+    await window.api.tasks.remove(taskId)
+    await refresh()
+  }
+
+  async function handleToggleTaskDone(taskId: number, done: boolean): Promise<void> {
+    await window.api.tasks.setStatus(taskId, done ? 'done' : 'pending')
+    await refresh()
+  }
+
+  async function handleRescheduleTask(taskId: number, date: string, time: string): Promise<void> {
+    await window.api.tasks.reschedule(taskId, date || null, time || null)
+    await refresh()
+  }
+
+  async function handleCancelTask(taskId: number): Promise<void> {
+    await window.api.tasks.setStatus(taskId, 'canceled')
+    await refresh()
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="px-6 py-4">
@@ -570,8 +648,16 @@ export function OverviewTab(): ReactElement {
                 value={inProgressCount}
                 subtext={`Dont ${readyCount} prête${readyCount > 1 ? 's' : ''}`}
                 color={IN_PROGRESS_CARD_COLOR}
+                navigateLabel="Voir les vidéos en cours"
+                onNavigate={onNavigateToInProgress}
               />
-              <StatCard label="Idées de vidéos" value={ideaCount} color={IDEAS_CARD_COLOR} />
+              <StatCard
+                label="Idées de vidéos"
+                value={ideaCount}
+                color={IDEAS_CARD_COLOR}
+                navigateLabel="Voir les idées"
+                onNavigate={onNavigateToIdeas}
+              />
             </div>
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -623,11 +709,17 @@ export function OverviewTab(): ReactElement {
         <TaskFormModal
           task={editingTask}
           taskTypes={taskTypes}
+          taskTypesById={taskTypesById}
           ideas={ideas}
+          otherTasks={tasks}
           onClose={() => setEditingTask(null)}
           onSave={handleUpdateTask}
           onDelete={handleDeleteTask}
           onTaskTypesChanged={refresh}
+          onOpenIdea={(idea) => {
+            setEditingTask(null)
+            setSelectedIdea(idea)
+          }}
         />
       )}
     </div>

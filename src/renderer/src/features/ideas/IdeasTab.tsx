@@ -41,7 +41,19 @@ function loadStoredSort(): IdeaSortState {
   }
 }
 
-export function IdeasTab(): ReactElement {
+interface IdeasTabProps {
+  // Set (e.g. from Vue d'ensemble's "Voir les idées" / "Voir les vidéos en cours" links) to
+  // activate the matching quick-filter preset as soon as this tab mounts, instead of whatever was
+  // last saved. Consumed once — the caller resets it so a later, unrelated switch back to this
+  // tab doesn't re-apply it.
+  activateFilterPreset?: 'ideasOnly' | 'inProgress'
+  onFilterPresetActivated?: () => void
+}
+
+export function IdeasTab({
+  activateFilterPreset,
+  onFilterPresetActivated
+}: IdeasTabProps = {}): ReactElement {
   const {
     ideas,
     objects,
@@ -62,14 +74,32 @@ export function IdeasTab(): ReactElement {
   } = useIdeasData()
   const [editingIdea, setEditingIdea] = useState<VideoIdea | null>(null)
   const [creating, setCreating] = useState(false)
-  const [filters, setFilters] = useState<IdeaFiltersState>(loadStoredFilters)
-  const [sort, setSort] = useState<IdeaSortState>(loadStoredSort)
+  const [filters, setFilters] = useState<IdeaFiltersState>(() => {
+    if (activateFilterPreset === 'ideasOnly') {
+      return { ...loadStoredFilters(), statuses: IDEA_ONLY_STATUSES }
+    }
+    if (activateFilterPreset === 'inProgress') {
+      return { ...loadStoredFilters(), statuses: IN_PROGRESS_STATUSES }
+    }
+    return loadStoredFilters()
+  })
+  const [sort, setSort] = useState<IdeaSortState>(() =>
+    activateFilterPreset === 'inProgress'
+      ? { field: 'publishDate', direction: 'desc' }
+      : loadStoredSort()
+  )
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [cleanupResult, setCleanupResult] = useState<string | null>(null)
   const [cleaningUp, setCleaningUp] = useState(false)
   const [pendingShift, setPendingShift] = useState<1 | -1 | null>(null)
   const [shifting, setShifting] = useState(false)
   const [shiftMessage, setShiftMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (activateFilterPreset) onFilterPresetActivated?.()
+    // Only ever meant to run once, right after mount — see the prop's own doc comment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters))

@@ -15,7 +15,12 @@ import type {
 import { SearchablePicker } from '../../components/SearchablePicker'
 import { formatDate, toDateInputValue } from '../../lib/format'
 import { taskColor } from '../../lib/taskTypeColors'
-import { isTaskOverdue, sortTasksByPipeline } from '../../lib/taskUrgency'
+import { isTaskOverdue } from '../../lib/taskUrgency'
+import {
+  conflictsByTaskId,
+  findWorkflowConflicts,
+  sortTasksForDisplay
+} from '../../lib/taskWorkflow'
 import { SeriesPicker } from '../series/SeriesPicker'
 import { TagPicker } from '../tags/TagPicker'
 import { TaskFormModal } from '../tasks/TaskFormModal'
@@ -87,8 +92,14 @@ export function IdeaFormModal({
   const pendingTasks = useMemo(() => {
     if (!idea) return []
     const linked = tasks.filter((t) => t.status === 'pending' && t.ideaIds.includes(idea.id))
-    return sortTasksByPipeline(linked, taskTypesById)
+    return sortTasksForDisplay(linked, taskTypesById)
   }, [idea, tasks, taskTypesById])
+
+  // Only needs this idea's own tasks — a conflict always involves two steps of the same idea.
+  const conflictsById = useMemo(
+    () => conflictsByTaskId(findWorkflowConflicts(pendingTasks, taskTypesById)),
+    [pendingTasks, taskTypesById]
+  )
 
   async function handleTaskSave(input: TaskInput): Promise<void> {
     if (!editingTask) return
@@ -300,6 +311,7 @@ export function IdeaFormModal({
                 <div className="space-y-1.5">
                   {pendingTasks.map((task) => {
                     const overdue = isTaskOverdue(task)
+                    const conflicts = conflictsById.get(task.id) ?? []
                     const color = taskColor(task, taskTypesById, statusColors)
                     const types = task.typeIds
                       .map((id) => taskTypesById.get(id))
@@ -312,7 +324,9 @@ export function IdeaFormModal({
                         style={
                           overdue
                             ? { borderColor: '#ef444466', backgroundColor: '#ef44440f' }
-                            : { borderColor: `${color}40`, backgroundColor: `${color}14` }
+                            : conflicts.length > 0
+                              ? { borderColor: '#f9731666', backgroundColor: '#f973160f' }
+                              : { borderColor: `${color}40`, backgroundColor: `${color}14` }
                         }
                         className="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-xs hover:brightness-125"
                       >
@@ -322,6 +336,14 @@ export function IdeaFormModal({
                         >
                           {task.title}
                         </span>
+                        {conflicts.length > 0 && (
+                          <span
+                            className="shrink-0 text-orange-300"
+                            title={`Ordre incohérent avec : ${conflicts.map((c) => c.title).join(', ')}`}
+                          >
+                            ⚠️
+                          </span>
+                        )}
                         {types.map((t) => (
                           <span key={t.id} className="shrink-0 text-gray-500">
                             {t.emoji} {t.name}
@@ -438,7 +460,9 @@ export function IdeaFormModal({
         <TaskFormModal
           task={editingTask}
           taskTypes={taskTypes}
+          taskTypesById={taskTypesById}
           ideas={existingIdeas}
+          otherTasks={tasks}
           onClose={() => setEditingTask(null)}
           onSave={handleTaskSave}
           onDelete={handleTaskDelete}

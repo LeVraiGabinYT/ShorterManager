@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactElement } from 'react'
 import type { UpdateStatus } from '@shared/types'
 import { UpdateAvailableModal } from './components/UpdateAvailableModal'
 import { OverviewTab } from './features/overview/OverviewTab'
-import { VideosTab } from './features/videos/VideosTab'
+import { VideosTab, type IdeasFilterPreset, type VideosSubTabId } from './features/videos/VideosTab'
 import { PropertiesTab } from './features/properties/PropertiesTab'
 import { AnalysisTab } from './features/analysis/AnalysisTab'
 import { SettingsTab } from './features/settings/SettingsTab'
@@ -19,8 +19,21 @@ type TabId = (typeof TABS)[number]['id']
 
 function App(): ReactElement {
   const [activeTab, setActiveTab] = useState<TabId>('videos')
+  const [videosSubTab, setVideosSubTab] = useState<VideosSubTabId>('ideas')
+  const [ideasFilterPreset, setIdeasFilterPreset] = useState<IdeasFilterPreset>(null)
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' })
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null)
+
+  function handleNavigateToTasks(): void {
+    setActiveTab('videos')
+    setVideosSubTab('tasks')
+  }
+
+  function handleNavigateToIdeas(preset: IdeasFilterPreset): void {
+    setActiveTab('videos')
+    setVideosSubTab('ideas')
+    setIdeasFilterPreset(preset)
+  }
 
   // Polls the same status the main process's autoUpdater maintains, so the popup reacts whether
   // the startup check found it or the user triggered a check manually from Paramètres.
@@ -77,8 +90,21 @@ function App(): ReactElement {
       </nav>
 
       <main className="flex-1 overflow-hidden">
-        {activeTab === 'overview' && <OverviewTab />}
-        {activeTab === 'videos' && <VideosTab />}
+        {activeTab === 'overview' && (
+          <OverviewTab
+            onNavigateToTasks={handleNavigateToTasks}
+            onNavigateToIdeas={() => handleNavigateToIdeas('ideasOnly')}
+            onNavigateToInProgress={() => handleNavigateToIdeas('inProgress')}
+          />
+        )}
+        {activeTab === 'videos' && (
+          <VideosTab
+            activeSubTab={videosSubTab}
+            onSubTabChange={setVideosSubTab}
+            ideasFilterPreset={ideasFilterPreset}
+            onIdeasFilterPresetConsumed={() => setIdeasFilterPreset(null)}
+          />
+        )}
         {activeTab === 'properties' && <PropertiesTab />}
         {activeTab === 'analysis' && <AnalysisTab />}
         {activeTab === 'settings' && <SettingsTab />}
