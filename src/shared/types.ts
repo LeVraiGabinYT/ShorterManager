@@ -225,6 +225,27 @@ export interface AppSettings {
   overviewColumnLeft: OverviewSectionId[]
   overviewColumnRight: OverviewSectionId[]
   overviewVisibleSections: OverviewSectionId[]
+  // "Local" (default): data lives only in this install's SQLite database, as always. "Fichier":
+  // data is instead kept in sync with a JSON file at syncFilePath — imported (merged) into the
+  // local DB on launch, merged again and re-exported on quit. Meant to be pointed at a file inside
+  // a locally-synced drive folder (Drive/Dropbox/OneDrive/...) so several installs share one
+  // dataset — see SyncResult / performFileSync for the merge algorithm and its limits.
+  storageMode: StorageMode
+  syncFilePath: string | null
+}
+
+export type StorageMode = 'local' | 'file'
+
+// Counts reflect changes actually applied to the LOCAL database by this sync (creates/updates/
+// deletes coming FROM the file) — not what got written back out to the file, which always ends up
+// mirroring the post-merge local state.
+export interface SyncResult {
+  success: boolean
+  error?: string
+  createdLocal: number
+  updatedLocal: number
+  deletedLocal: number
+  syncedAt?: string
 }
 
 export interface SettingsExportResult {
@@ -336,6 +357,11 @@ export interface ShorterManagerApi {
     pickImportFile: () => Promise<string | null>
     import: (filePath: string, mode: BackupMode) => Promise<BackupImportResult>
     wipeAll: () => Promise<{ success: boolean; error?: string }>
+  }
+  sync: {
+    pickFile: () => Promise<string | null>
+    now: () => Promise<SyncResult>
+    getLastResult: () => Promise<SyncResult | null>
   }
   updates: {
     check: () => Promise<void>

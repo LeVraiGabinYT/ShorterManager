@@ -6,10 +6,13 @@ import type {
   IdeaStatus,
   OverviewSectionId,
   ReleaseNotes,
+  StorageMode,
+  SyncResult,
   UpdateStatus
 } from '@shared/types'
 import { DEFAULT_STATUS_COLORS, IDEA_STATUSES, OVERVIEW_SECTIONS } from '@shared/types'
 import { useIdeasData } from '../../hooks/useIdeasData'
+import { formatRelativeTime } from '../../lib/format'
 import { overviewSectionColor } from '../../lib/sectionColors'
 
 function ImportConfirmModal({
@@ -161,7 +164,7 @@ function WipeConfirmModal({
 }
 
 export function SettingsTab(): ReactElement {
-  const { settings: contextSettings, setSettings, loading: dataLoading } = useIdeasData()
+  const { settings: contextSettings, setSettings, loading: dataLoading, refresh } = useIdeasData()
   const settings = dataLoading ? null : contextSettings
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null)
   const [maxRecentVideosInput, setMaxRecentVideosInput] = useState('')
@@ -194,10 +197,13 @@ export function SettingsTab(): ReactElement {
     column: 'left' | 'right'
     id: OverviewSectionId | null
   } | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null)
 
   useEffect(() => {
     window.api.app.getInfo().then(setAppInfo)
     window.api.updates.getReleaseNotes().then(setReleaseNotes)
+    window.api.sync.getLastResult().then(setLastSyncResult)
   }, [])
 
   // Seeds the free-typed input from the shared settings once they've loaded — only on that first
@@ -362,6 +368,30 @@ export function SettingsTab(): ReactElement {
       setMaxRecentVideosInput(String(refreshed.maxRecentVideos))
       maxRecentVideosSeededRef.current = true
     }
+  }
+
+  async function handleSyncNow(): Promise<void> {
+    setSyncing(true)
+    const result = await window.api.sync.now()
+    setSyncing(false)
+    setLastSyncResult(result)
+    if (result.success) await refresh()
+  }
+
+  async function handleSetStorageMode(mode: StorageMode): Promise<void> {
+    if (!settings) return
+    if (mode === 'local') {
+      await window.api.settings.update({ storageMode: 'local' })
+      setSettings(await window.api.settings.get())
+      return
+    }
+    // Switching to "Fichier": always (re)pick the target file, even if one was already
+    // configured — the user might want to point at a different synced folder.
+    const path = await window.api.sync.pickFile()
+    if (!path) return
+    await window.api.settings.update({ storageMode: 'file', syncFilePath: path })
+    setSettings(await window.api.settings.get())
+    await handleSyncNow()
   }
 
   async function handleExport(): Promise<void> {
@@ -704,6 +734,81 @@ export function SettingsTab(): ReactElement {
                   })}
                 </div>
               </div>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+          <h2 className="text-sm font-medium text-gray-200">Mode de sauvegarde des données</h2>
+          <p className="mt-1 text-xs text-gray-500">
+            « Local » : les données restent uniquement dans cette installation, comme aujourd’hui. «
+            Fichier » : les données sont tenues à jour dans un fichier JSON de ton choix — idéal
+            pour un dossier synchronisé (Drive, Dropbox, OneDrive...) partagé entre plusieurs
+            installations. Le fichier est fusionné intelligemment (seuls les ajouts, modifications
+            et suppressions réels sont appliqués) au lancement et à la fermeture de l’app — jamais
+            un simple écrasement. La connexion à la chaîne YouTube n’est jamais incluse dans ce
+            fichier.
+          </p>
+
+          <div className="mt-3 flex gap-1 rounded-md border border-white/10 bg-white/5 p-1 text-sm">
+            {(['local', 'file'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => handleSetStorageMode(mode)}
+                className={`flex-1 rounded px-3 py-1.5 transition-colors ${
+                  settings?.storageMode === mode
+                    ? 'bg-white/10 text-gray-100'
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                {mode === 'local' ? 'Local' : 'Fichier'}
+              </button>
+            ))}
+          </div>
+
+          {settings?.storageMode === 'file' && (
+            <div className="mt-3 space-y-2">
+              <p className="break-all rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-300">
+                {settings.syncFilePath ?? 'Aucun fichier choisi.'}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSetStorageMode('file')}
+                  className="rounded-md border border-white/10 px-3 py-1.5 text-sm text-gray-300 hover:bg-white/5"
+                >
+                  Changer de fichier...
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSyncNow}
+                  disabled={syncing || !settings.syncFilePath}
+                  className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {syncing ? 'Synchronisation...' : 'Synchroniser maintenant'}
+                </button>
+              </div>
+              {lastSyncResult && (
+                <p
+                  className={`rounded-md border px-3 py-2 text-xs ${
+                    lastSyncResult.success
+                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                      : 'border-red-500/40 bg-red-500/10 text-red-200'
+                  }`}
+                >
+                  {lastSyncResult.success
+                    ? `Dernière synchro ${formatRelativeTime(lastSyncResult.syncedAt ?? null)} — ` +
+                      `${lastSyncResult.createdLocal} ajout(s), ${lastSyncResult.updatedLocal} modification(s), ` +
+                      `${lastSyncResult.deletedLocal} suppression(s) appliqués localement.`
+                    : (lastSyncResult.error ?? 'Échec de la synchronisation.')}
+                </p>
+              )}
+              <p className="text-xs text-gray-500">
+                Attention : si l’app tourne sur deux appareils en même temps, seule la fermeture (ou
+                une synchro manuelle) fusionne réellement les changements — assure-toi que le drive
+                a fini de synchroniser avant de rouvrir l’app ailleurs.
+              </p>
             </div>
           )}
         </section>

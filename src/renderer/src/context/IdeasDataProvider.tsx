@@ -25,7 +25,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   showTagsOnIdeaCard: false,
   overviewColumnLeft: DEFAULT_OVERVIEW_COLUMN_LEFT,
   overviewColumnRight: DEFAULT_OVERVIEW_COLUMN_RIGHT,
-  overviewVisibleSections: DEFAULT_OVERVIEW_SECTIONS
+  overviewVisibleSections: DEFAULT_OVERVIEW_SECTIONS,
+  storageMode: 'local',
+  syncFilePath: null
 }
 
 // Fetched ONCE, at the app root — every tab reads the same already-loaded copy instead of each

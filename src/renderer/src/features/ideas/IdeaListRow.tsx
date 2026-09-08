@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import type { IdeaStatus, OwnedObject, Series, Tag, VideoIdea } from '@shared/types'
 import { IDEA_STATUSES } from '@shared/types'
 import { CountdownBadge } from '../../components/CountdownBadge'
-import { formatDate } from '../../lib/format'
+import { formatDate, formatNumber } from '../../lib/format'
 import { getEffectiveStatus } from '../../lib/ideaStatus'
 import { getTagChipStyle } from '../../lib/tagColors'
 import { getStatusBadgeStyle, getStatusRowStyle } from './statusStyles'
@@ -16,6 +16,8 @@ interface IdeaListRowProps {
   showTags?: boolean
   ruleMissingObjectsPreparation?: boolean
   pendingTaskCount?: number
+  // The linked video's view count — only ever rendered once the idea is published.
+  viewCount?: number | null
   selected?: boolean
   onToggleSelect?: () => void
   onClick: () => void
@@ -31,6 +33,7 @@ export function IdeaListRow({
   showTags = false,
   ruleMissingObjectsPreparation = true,
   pendingTaskCount = 0,
+  viewCount = null,
   selected = false,
   onToggleSelect,
   onClick,
@@ -94,10 +97,16 @@ export function IdeaListRow({
             )}
           </div>
 
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1">
             {series && (
               <span className="shrink-0 rounded-full border border-violet-500/40 bg-violet-500/20 px-2 py-0.5 text-xs font-medium text-violet-300">
                 {series.name}
+              </span>
+            )}
+
+            {status === 'published' && viewCount !== null && (
+              <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-gray-300">
+                👁️ {formatNumber(viewCount)} vues
               </span>
             )}
 

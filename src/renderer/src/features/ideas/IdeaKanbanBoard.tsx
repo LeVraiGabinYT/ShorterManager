@@ -1,14 +1,11 @@
 import { useState, type ReactElement } from 'react'
 import { IDEA_STATUSES } from '@shared/types'
-import type { IdeaStatus, OwnedObject, Series, Tag, VideoIdea } from '@shared/types'
+import type { IdeaStatus, OwnedObject, PublishedVideo, Series, Tag, VideoIdea } from '@shared/types'
 import { CountdownBadge } from '../../components/CountdownBadge'
-import { formatDate } from '../../lib/format'
+import { formatDate, formatNumber } from '../../lib/format'
 import { getEffectiveStatus } from '../../lib/ideaStatus'
 
-// "Publiée" is deliberately not a column here — it's a "done" bucket that would only ever grow,
-// turning the board into an endless scroll instead of a working view of the active pipeline.
-// Published ideas stay fully visible and searchable in the List view.
-const KANBAN_STATUSES = IDEA_STATUSES.filter((s) => s.value !== 'published')
+const KANBAN_STATUSES = IDEA_STATUSES
 
 interface IdeaKanbanBoardProps {
   ideas: VideoIdea[]
@@ -18,6 +15,7 @@ interface IdeaKanbanBoardProps {
   statusColors: Record<IdeaStatus, string>
   ruleMissingObjectsPreparation: boolean
   pendingTaskCountByIdeaId: Map<number, number>
+  publishedVideosByIdeaId: Map<number, PublishedVideo>
   onSelect: (idea: VideoIdea) => void
   onMove: (idea: VideoIdea, status: IdeaStatus) => void
 }
@@ -29,6 +27,7 @@ interface KanbanCardProps {
   statusColor: string
   missingObjects: boolean
   pendingTaskCount: number
+  viewCount: number | null
   dragged: boolean
   onDragStart: () => void
   onDragEnd: () => void
@@ -42,6 +41,7 @@ function KanbanCard({
   statusColor,
   missingObjects,
   pendingTaskCount,
+  viewCount,
   dragged,
   onDragStart,
   onDragEnd,
@@ -83,6 +83,9 @@ function KanbanCard({
           </span>
         )}
         {tagCount > 0 && <span>🏷️ {tagCount}</span>}
+        {idea.status === 'published' && viewCount !== null && (
+          <span className="font-medium text-gray-300">👁️ {formatNumber(viewCount)} vues</span>
+        )}
       </div>
 
       {(idea.shootDate || idea.publishDate) && (
@@ -113,6 +116,7 @@ export function IdeaKanbanBoard({
   statusColors,
   ruleMissingObjectsPreparation,
   pendingTaskCountByIdeaId,
+  publishedVideosByIdeaId,
   onSelect,
   onMove
 }: IdeaKanbanBoardProps): ReactElement {
@@ -142,6 +146,12 @@ export function IdeaKanbanBoard({
         const columnIdeas = ideas.filter(
           (idea) => effectiveById.get(idea.id)?.status === column.value
         )
+        // "Publiée" is the one column ordered by an actual date rather than however `ideas` came
+        // in — most recently posted first, so the top of the column is always "what just went
+        // live," undated ideas (shouldn't normally happen once published) sinking to the bottom.
+        if (column.value === 'published') {
+          columnIdeas.sort((a, b) => (b.publishDate ?? '').localeCompare(a.publishDate ?? ''))
+        }
         const color = statusColors[column.value]
         return (
           <div
@@ -178,6 +188,7 @@ export function IdeaKanbanBoard({
                     statusColor={color}
                     missingObjects={effective?.missingObjects ?? false}
                     pendingTaskCount={pendingTaskCountByIdeaId.get(idea.id) ?? 0}
+                    viewCount={publishedVideosByIdeaId.get(idea.id)?.viewCount ?? null}
                     dragged={draggedId === idea.id}
                     onDragStart={() => setDraggedId(idea.id)}
                     onDragEnd={() => setDraggedId(null)}

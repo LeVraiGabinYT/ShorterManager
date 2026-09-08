@@ -4,6 +4,17 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { checkForUpdatesOnStartup } from './autoUpdate'
 import { registerIpcHandlers } from './ipc'
+import { loadSettings } from './settings'
+import { performFileSyncTracked } from './sync'
+
+// Both hooks are synchronous (better-sqlite3 and fs writes are), so quit/window-creation is
+// naturally blocked until the merge finishes — no need to juggle `before-quit`'s preventDefault.
+function syncNowIfFileMode(): void {
+  const { storageMode, syncFilePath } = loadSettings()
+  if (storageMode === 'file' && syncFilePath) {
+    performFileSyncTracked(syncFilePath)
+  }
+}
 
 function createWindow(): void {
   // Create the browser window.
@@ -53,6 +64,7 @@ app.whenReady().then(() => {
   })
 
   registerIpcHandlers()
+  syncNowIfFileMode()
   checkForUpdatesOnStartup()
 
   createWindow()
@@ -71,6 +83,12 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+// Runs on every quit path (window-all-closed's app.quit(), Cmd+Q on macOS, the app menu, OS
+// shutdown) — always before the process actually exits, since it's synchronous.
+app.on('before-quit', () => {
+  syncNowIfFileMode()
 })
 
 // In this file you can include the rest of your app's specific main process

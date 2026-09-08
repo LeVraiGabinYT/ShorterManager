@@ -282,6 +282,7 @@ export function SeriesDetailModal({
                     showTags={showTags}
                     ruleMissingObjectsPreparation={ruleMissingObjectsPreparation}
                     pendingTaskCount={pendingTaskCountByIdeaId.get(idea.id) ?? 0}
+                    viewCount={publishedVideosByIdeaId.get(idea.id)?.viewCount ?? null}
                     onClick={() => setEditingIdea(idea)}
                     trailingAction={
                       <RemoveEpisodeAction onRemove={() => handleRemoveFromSeries(idea)} />

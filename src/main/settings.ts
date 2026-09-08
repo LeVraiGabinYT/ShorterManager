@@ -5,7 +5,8 @@ import type {
   AppSettings,
   OverviewSectionId,
   SettingsExportResult,
-  SettingsImportResult
+  SettingsImportResult,
+  StorageMode
 } from '../shared/types'
 import {
   DEFAULT_OVERVIEW_COLUMN_LEFT,
@@ -22,7 +23,17 @@ const DEFAULT_SETTINGS: AppSettings = {
   showTagsOnIdeaCard: false,
   overviewColumnLeft: DEFAULT_OVERVIEW_COLUMN_LEFT,
   overviewColumnRight: DEFAULT_OVERVIEW_COLUMN_RIGHT,
-  overviewVisibleSections: DEFAULT_OVERVIEW_SECTIONS
+  overviewVisibleSections: DEFAULT_OVERVIEW_SECTIONS,
+  storageMode: 'local',
+  syncFilePath: null
+}
+
+function sanitizeStorageMode(value: unknown): StorageMode {
+  return value === 'file' ? 'file' : 'local'
+}
+
+function sanitizeSyncFilePath(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? value : null
 }
 
 function getSettingsPath(): string {
@@ -92,7 +103,9 @@ function mergeWithDefaults(parsed: Partial<AppSettings>): AppSettings {
     statusColors: { ...DEFAULT_STATUS_COLORS, ...parsed.statusColors },
     overviewColumnLeft,
     overviewColumnRight,
-    overviewVisibleSections: sanitizeOverviewVisibility(parsed.overviewVisibleSections)
+    overviewVisibleSections: sanitizeOverviewVisibility(parsed.overviewVisibleSections),
+    storageMode: sanitizeStorageMode(parsed.storageMode),
+    syncFilePath: sanitizeSyncFilePath(parsed.syncFilePath)
   }
 }
 

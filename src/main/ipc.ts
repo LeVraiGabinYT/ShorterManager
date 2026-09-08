@@ -37,6 +37,7 @@ import {
   pickSettingsImportFile,
   updateSettings
 } from './settings'
+import { getLastSyncResult, performFileSyncTracked, pickSyncFile } from './sync'
 import { connectChannel, disconnectChannel } from './youtube/oauth'
 import {
   createIdeaFromVideo,
@@ -154,6 +155,22 @@ export function registerIpcHandlers(): void {
     importBackup(filePath, mode)
   )
   ipcMain.handle('backup:wipeAll', () => wipeAllAppData())
+
+  ipcMain.handle('sync:pickFile', () => pickSyncFile())
+  ipcMain.handle('sync:now', () => {
+    const { syncFilePath } = loadSettings()
+    if (!syncFilePath) {
+      return {
+        success: false,
+        error: 'Aucun fichier de synchronisation choisi.',
+        createdLocal: 0,
+        updatedLocal: 0,
+        deletedLocal: 0
+      }
+    }
+    return performFileSyncTracked(syncFilePath)
+  })
+  ipcMain.handle('sync:getLastResult', () => getLastSyncResult())
 
   ipcMain.handle('updates:check', () => checkForUpdatesNow())
   ipcMain.handle('updates:download', () => downloadUpdateNow())

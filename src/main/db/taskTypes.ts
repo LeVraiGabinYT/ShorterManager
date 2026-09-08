@@ -53,6 +53,13 @@ export function reorderTaskTypes(orderedIds: number[]): TaskType[] {
   return listTaskTypes()
 }
 
+export function updateTaskType(id: number, input: TaskTypeInput): TaskType {
+  getDb()
+    .prepare('UPDATE task_types SET name = @name, emoji = @emoji WHERE id = @id')
+    .run({ id, name: input.name, emoji: input.emoji || '📌' })
+  return getTaskTypeById(id)
+}
+
 export function removeTaskType(id: number): void {
   getDb().prepare('DELETE FROM task_types WHERE id = ?').run(id)
 }

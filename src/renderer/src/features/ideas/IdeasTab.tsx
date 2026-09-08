@@ -487,6 +487,7 @@ export function IdeasTab({
             statusColors={settings.statusColors}
             ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
             pendingTaskCountByIdeaId={pendingTaskCountByIdeaId}
+            publishedVideosByIdeaId={publishedVideosByIdeaId}
             onSelect={setEditingIdea}
             onMove={handleMoveIdea}
           />
@@ -553,6 +554,7 @@ export function IdeasTab({
                   showTags={settings.showTagsOnIdeaCard}
                   ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
                   pendingTaskCount={pendingTaskCountByIdeaId.get(idea.id) ?? 0}
+                  viewCount={publishedVideosByIdeaId.get(idea.id)?.viewCount ?? null}
                   selected={selectedIds.has(idea.id)}
                   onToggleSelect={() => toggleSelect(idea.id)}
                   onClick={() => setEditingIdea(idea)}

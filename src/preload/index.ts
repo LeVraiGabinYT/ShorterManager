@@ -89,6 +89,11 @@ const api: ShorterManagerApi = {
       ipcRenderer.invoke('backup:import', filePath, mode),
     wipeAll: () => ipcRenderer.invoke('backup:wipeAll')
   },
+  sync: {
+    pickFile: () => ipcRenderer.invoke('sync:pickFile'),
+    now: () => ipcRenderer.invoke('sync:now'),
+    getLastResult: () => ipcRenderer.invoke('sync:getLastResult')
+  },
   updates: {
     check: () => ipcRenderer.invoke('updates:check'),
     download: () => ipcRenderer.invoke('updates:download'),
