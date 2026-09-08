@@ -1,7 +1,6 @@
-import { useEffect, useState, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type DragEvent, type ReactElement } from 'react'
 import type {
   AppInfo,
-  AppSettings,
   BackupImportResult,
   BackupMode,
   IdeaStatus,
@@ -10,6 +9,7 @@ import type {
   UpdateStatus
 } from '@shared/types'
 import { DEFAULT_STATUS_COLORS, IDEA_STATUSES, OVERVIEW_SECTIONS } from '@shared/types'
+import { useIdeasData } from '../../hooks/useIdeasData'
 import { overviewSectionColor } from '../../lib/sectionColors'
 
 function ImportConfirmModal({
@@ -161,8 +161,9 @@ function WipeConfirmModal({
 }
 
 export function SettingsTab(): ReactElement {
+  const { settings: contextSettings, setSettings, loading: dataLoading } = useIdeasData()
+  const settings = dataLoading ? null : contextSettings
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null)
-  const [settings, setSettings] = useState<AppSettings | null>(null)
   const [maxRecentVideosInput, setMaxRecentVideosInput] = useState('')
 
   const [exporting, setExporting] = useState(false)
@@ -186,16 +187,27 @@ export function SettingsTab(): ReactElement {
   const [settingsImportMessage, setSettingsImportMessage] = useState<string | null>(null)
   const [settingsImportSucceeded, setSettingsImportSucceeded] = useState(false)
   const [draggedSectionId, setDraggedSectionId] = useState<OverviewSectionId | null>(null)
-  const [localSectionOrder, setLocalSectionOrder] = useState<OverviewSectionId[] | null>(null)
+  // `id: null` means "over the column's empty space / past its last item" (append), not over a
+  // specific row — used only to highlight the drop target, never to compute the result: the
+  // actual move is computed once, synchronously, in commitSectionMove on the real drop event.
+  const [dragOverTarget, setDragOverTarget] = useState<{
+    column: 'left' | 'right'
+    id: OverviewSectionId | null
+  } | null>(null)
 
   useEffect(() => {
     window.api.app.getInfo().then(setAppInfo)
-    window.api.settings.get().then((s) => {
-      setSettings(s)
-      setMaxRecentVideosInput(String(s.maxRecentVideos))
-    })
     window.api.updates.getReleaseNotes().then(setReleaseNotes)
   }, [])
+
+  // Seeds the free-typed input from the shared settings once they've loaded — only on that first
+  // transition, so a later settings change from elsewhere never clobbers text the user is mid-typing.
+  const maxRecentVideosSeededRef = useRef(false)
+  useEffect(() => {
+    if (dataLoading || maxRecentVideosSeededRef.current) return
+    maxRecentVideosSeededRef.current = true
+    setMaxRecentVideosInput(String(contextSettings.maxRecentVideos))
+  }, [dataLoading, contextSettings.maxRecentVideos])
 
   useEffect(() => {
     let cancelled = false
@@ -268,31 +280,59 @@ export function SettingsTab(): ReactElement {
   }
 
   function handleSectionDragStart(id: OverviewSectionId): void {
-    if (!settings) return
     setDraggedSectionId(id)
-    setLocalSectionOrder(settings.overviewSectionOrder)
   }
 
-  // Reorders the in-progress (not-yet-persisted) list as soon as the dragged item passes over
-  // another one, so items visually move out of the way before the drop happens.
-  function handleSectionDragEnter(targetId: OverviewSectionId): void {
-    if (!draggedSectionId || draggedSectionId === targetId) return
-    setLocalSectionOrder((prev) => {
-      const base = prev ?? settings?.overviewSectionOrder ?? []
-      const next = base.filter((id) => id !== draggedSectionId)
-      next.splice(next.indexOf(targetId), 0, draggedSectionId)
-      return next
-    })
-  }
-
-  async function handleSectionDragEnd(): Promise<void> {
-    const finalOrder = localSectionOrder
+  function handleSectionDragEnd(): void {
     setDraggedSectionId(null)
-    setLocalSectionOrder(null)
-    if (!settings || !finalOrder) return
-    if (finalOrder.join(',') === settings.overviewSectionOrder.join(',')) return
-    const updated = await window.api.settings.update({ overviewSectionOrder: finalOrder })
+    setDragOverTarget(null)
+  }
+
+  // Computes and persists the move exactly once, on the actual drop — not speculatively on every
+  // dragenter — so there's a single source of truth for the result and no risk of a bubbled
+  // dragenter on a parent column silently overriding a more precise in-column reorder.
+  // `targetId: null` means "dropped past the last item" (append to the end of that column).
+  async function commitSectionMove(
+    column: 'left' | 'right',
+    targetId: OverviewSectionId | null
+  ): Promise<void> {
+    const sourceId = draggedSectionId
+    setDraggedSectionId(null)
+    setDragOverTarget(null)
+    if (!settings || !sourceId) return
+
+    const left = settings.overviewColumnLeft.filter((id) => id !== sourceId)
+    const right = settings.overviewColumnRight.filter((id) => id !== sourceId)
+    const target = column === 'left' ? left : right
+    const insertAt = targetId ? target.indexOf(targetId) : -1
+    target.splice(insertAt === -1 ? target.length : insertAt, 0, sourceId)
+
+    if (
+      left.join(',') === settings.overviewColumnLeft.join(',') &&
+      right.join(',') === settings.overviewColumnRight.join(',')
+    ) {
+      return
+    }
+    const updated = await window.api.settings.update({
+      overviewColumnLeft: left,
+      overviewColumnRight: right
+    })
     setSettings(updated)
+  }
+
+  function handleSectionDrop(
+    e: DragEvent<HTMLDivElement>,
+    column: 'left' | 'right',
+    targetId: OverviewSectionId
+  ): void {
+    e.preventDefault()
+    e.stopPropagation()
+    void commitSectionMove(column, targetId)
+  }
+
+  function handleColumnDrop(e: DragEvent<HTMLDivElement>, column: 'left' | 'right'): void {
+    e.preventDefault()
+    void commitSectionMove(column, null)
   }
 
   async function handleExportSettings(): Promise<void> {
@@ -320,6 +360,7 @@ export function SettingsTab(): ReactElement {
       const refreshed = await window.api.settings.get()
       setSettings(refreshed)
       setMaxRecentVideosInput(String(refreshed.maxRecentVideos))
+      maxRecentVideosSeededRef.current = true
     }
   }
 
@@ -598,42 +639,66 @@ export function SettingsTab(): ReactElement {
                   Sections de la Vue d’ensemble
                 </label>
                 <p className="mb-2 text-xs text-gray-500">
-                  Coche les sections à afficher et glisse-les pour changer leur ordre — la
-                  disposition à 2 colonnes et les couleurs reprennent celles de la Vue d’ensemble.
+                  Coche les sections à afficher et glisse-les pour changer leur ordre ou les passer
+                  d’une colonne à l’autre — les couleurs reprennent celles de la Vue d’ensemble.
                 </p>
-                <div className="grid max-w-md grid-cols-2 gap-1.5">
-                  {(localSectionOrder ?? settings.overviewSectionOrder).map((id) => {
-                    const label = OVERVIEW_SECTIONS.find((s) => s.id === id)?.label ?? id
-                    const visible = settings.overviewVisibleSections.includes(id)
-                    const color = overviewSectionColor(id, settings.statusColors)
+                <div className="grid max-w-md grid-cols-2 gap-3">
+                  {(['left', 'right'] as const).map((column) => {
+                    const columnIds =
+                      column === 'left' ? settings.overviewColumnLeft : settings.overviewColumnRight
+                    const isOverColumnEnd =
+                      dragOverTarget?.column === column && dragOverTarget.id === null
                     return (
                       <div
-                        key={id}
-                        draggable
-                        onDragStart={() => handleSectionDragStart(id)}
-                        onDragEnter={() => handleSectionDragEnter(id)}
+                        key={column}
                         onDragOver={(e) => e.preventDefault()}
-                        onDragEnd={handleSectionDragEnd}
-                        style={{ backgroundColor: `${color}1f`, borderColor: `${color}55` }}
-                        className={`flex items-center gap-1.5 rounded-md border px-2 py-1 transition-opacity ${
-                          draggedSectionId === id ? 'opacity-40' : ''
-                        } ${visible ? '' : 'opacity-50'}`}
+                        onDragEnter={() => setDragOverTarget({ column, id: null })}
+                        onDrop={(e) => handleColumnDrop(e, column)}
+                        className={`min-h-[2.5rem] space-y-1.5 rounded-md border border-dashed p-1.5 transition-colors ${
+                          isOverColumnEnd ? 'border-blue-400/60 bg-blue-500/5' : 'border-white/10'
+                        }`}
                       >
-                        <span
-                          className="shrink-0 cursor-grab select-none text-xs text-gray-400 active:cursor-grabbing"
-                          title="Glisser pour réordonner"
-                        >
-                          ⠿
-                        </span>
-                        <label className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-gray-200">
-                          <input
-                            type="checkbox"
-                            checked={visible}
-                            onChange={() => handleToggleOverviewSection(id)}
-                            className="h-3.5 w-3.5 shrink-0 rounded border-white/20 bg-white/5 accent-blue-600"
-                          />
-                          <span className="truncate">{label}</span>
-                        </label>
+                        {columnIds.map((id) => {
+                          const label = OVERVIEW_SECTIONS.find((s) => s.id === id)?.label ?? id
+                          const visible = settings.overviewVisibleSections.includes(id)
+                          const color = overviewSectionColor(id, settings.statusColors)
+                          const isDropTarget =
+                            dragOverTarget?.column === column && dragOverTarget.id === id
+                          return (
+                            <div
+                              key={id}
+                              draggable
+                              onDragStart={() => handleSectionDragStart(id)}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDragEnter={(e) => {
+                                e.stopPropagation()
+                                setDragOverTarget({ column, id })
+                              }}
+                              onDrop={(e) => handleSectionDrop(e, column, id)}
+                              onDragEnd={handleSectionDragEnd}
+                              style={{ backgroundColor: `${color}1f`, borderColor: `${color}55` }}
+                              className={`flex items-center gap-1.5 rounded-md border px-2 py-1 transition-opacity ${
+                                draggedSectionId === id ? 'opacity-40' : ''
+                              } ${isDropTarget ? '!border-blue-400' : ''} ${visible ? '' : 'opacity-50'}`}
+                            >
+                              <span
+                                className="shrink-0 cursor-grab select-none text-xs text-gray-400 active:cursor-grabbing"
+                                title="Glisser pour réordonner ou changer de colonne"
+                              >
+                                ⠿
+                              </span>
+                              <label className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-gray-200">
+                                <input
+                                  type="checkbox"
+                                  checked={visible}
+                                  onChange={() => handleToggleOverviewSection(id)}
+                                  className="h-3.5 w-3.5 shrink-0 rounded border-white/20 bg-white/5 accent-blue-600"
+                                />
+                                <span className="truncate">{label}</span>
+                              </label>
+                            </div>
+                          )
+                        })}
                       </div>
                     )
                   })}

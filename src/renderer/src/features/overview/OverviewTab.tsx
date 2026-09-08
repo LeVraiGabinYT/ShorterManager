@@ -660,12 +660,26 @@ export function OverviewTab({
               />
             </div>
 
+            {/* Each column renders exactly the sections assigned to it in the paramètres, in
+                that order, and stacks them independently — so a tall section on one side never
+                pushes empty space into the other (unlike a CSS grid, where row height is shared
+                across both columns), and moving a section between columns is how the user
+                controls how many sections land on each side, not just their order. */}
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              {settings.overviewSectionOrder
-                .filter((id) => settings.overviewVisibleSections.includes(id))
-                .map((id) => (
-                  <div key={id}>{sectionElements[id]}</div>
-                ))}
+              <div className="space-y-4">
+                {settings.overviewColumnLeft
+                  .filter((id) => settings.overviewVisibleSections.includes(id))
+                  .map((id) => (
+                    <div key={id}>{sectionElements[id]}</div>
+                  ))}
+              </div>
+              <div className="space-y-4">
+                {settings.overviewColumnRight
+                  .filter((id) => settings.overviewVisibleSections.includes(id))
+                  .map((id) => (
+                    <div key={id}>{sectionElements[id]}</div>
+                  ))}
+              </div>
             </div>
           </div>
         )}

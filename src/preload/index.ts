@@ -70,8 +70,7 @@ const api: ShorterManagerApi = {
       ipcRenderer.invoke('tasks:setStatus', id, status),
     reschedule: (id: number, dueDate: string | null, dueTime: string | null) =>
       ipcRenderer.invoke('tasks:reschedule', id, dueDate, dueTime),
-    remove: (id: number) => ipcRenderer.invoke('tasks:remove', id),
-    removeMany: (ids: number[]) => ipcRenderer.invoke('tasks:removeMany', ids)
+    remove: (id: number) => ipcRenderer.invoke('tasks:remove', id)
   },
   app: {
     getInfo: () => ipcRenderer.invoke('app:getInfo')

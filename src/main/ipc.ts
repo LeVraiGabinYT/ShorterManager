@@ -24,7 +24,6 @@ import {
   createTask,
   listTasks,
   removeTask,
-  removeTasks,
   rescheduleTask,
   setTaskStatus,
   updateTask
@@ -140,7 +139,6 @@ export function registerIpcHandlers(): void {
       rescheduleTask(id, dueDate, dueTime)
   )
   ipcMain.handle('tasks:remove', (_event, id: number) => removeTask(id))
-  ipcMain.handle('tasks:removeMany', (_event, ids: number[]) => removeTasks(ids))
 
   ipcMain.handle('app:getInfo', () => getAppInfo())
 

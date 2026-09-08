@@ -4,7 +4,7 @@ import type { Task, TaskType } from '@shared/types'
 // (onglet Tâches). Nothing here is hardcoded by name: reordering a type there immediately changes
 // same-day task ordering and which tasks get flagged as "ordre incohérent" below. A task with no
 // type at all carries no known position and is excluded from both checks.
-export function workflowPosition(task: Task, taskTypesById: Map<number, TaskType>): number | null {
+function workflowPosition(task: Task, taskTypesById: Map<number, TaskType>): number | null {
   const positions = task.typeIds
     .map((id) => taskTypesById.get(id)?.position)
     .filter((p): p is number => p !== undefined)

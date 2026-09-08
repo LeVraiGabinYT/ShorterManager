@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react'
+import { useState, type ReactElement } from 'react'
 import type { PublishedVideo, Tag } from '@shared/types'
 import { AnalysisVideoRow } from './AnalysisVideoRow'
 
@@ -18,6 +18,7 @@ interface GroupColumnProps {
   onMoveSelected: () => void
   onRemoveOne: (id: string) => void
   onRemoveSelected: () => void
+  onClearGroup: () => void
 }
 
 function GroupColumn({
@@ -30,11 +31,13 @@ function GroupColumn({
   onMoveOne,
   onMoveSelected,
   onRemoveOne,
-  onRemoveSelected
+  onRemoveSelected,
+  onClearGroup
 }: GroupColumnProps): ReactElement {
   const color = GROUP_COLOR[group]
   const otherLabel = group === 'blue' ? 'Orange' : 'Bleu'
   const selectedInGroup = videos.filter((v) => selectedIds.has(v.youtubeVideoId)).length
+  const [confirmingClear, setConfirmingClear] = useState(false)
 
   return (
     <div
@@ -49,14 +52,47 @@ function GroupColumn({
           />
           {GROUP_LABEL[group]} ({videos.length})
         </h3>
-        <button
-          type="button"
-          onClick={onAddClick}
-          style={{ borderColor: `${color}66`, color }}
-          className="rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-white/5"
-        >
-          + Ajouter des vidéos
-        </button>
+        <div className="flex items-center gap-1.5">
+          {confirmingClear ? (
+            <span className="flex items-center gap-1.5 text-xs">
+              <span className="text-red-300">Vider le groupe ?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  onClearGroup()
+                  setConfirmingClear(false)
+                }}
+                className="rounded bg-red-600 px-2 py-1 font-medium text-white hover:bg-red-500"
+              >
+                Confirmer
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingClear(false)}
+                className="text-gray-400 hover:text-gray-200"
+              >
+                Annuler
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmingClear(true)}
+              disabled={videos.length === 0}
+              className="rounded-md border border-white/10 px-2.5 py-1 text-xs font-medium text-gray-400 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Vider
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onAddClick}
+            style={{ borderColor: `${color}66`, color }}
+            className="rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-white/5"
+          >
+            + Ajouter des vidéos
+          </button>
+        </div>
       </div>
 
       {selectedInGroup > 0 && (
@@ -128,6 +164,7 @@ interface GroupVideosPanelProps {
   onMoveSelected: (from: GroupId) => void
   onRemoveOne: (id: string, from: GroupId) => void
   onRemoveSelected: (from: GroupId) => void
+  onClearGroup: (group: GroupId) => void
 }
 
 export function GroupVideosPanel({
@@ -140,7 +177,8 @@ export function GroupVideosPanel({
   onMoveOne,
   onMoveSelected,
   onRemoveOne,
-  onRemoveSelected
+  onRemoveSelected,
+  onClearGroup
 }: GroupVideosPanelProps): ReactElement {
   return (
     <div className="grid min-h-[22rem] grid-cols-1 gap-3 lg:grid-cols-2">
@@ -155,6 +193,7 @@ export function GroupVideosPanel({
         onMoveSelected={() => onMoveSelected('blue')}
         onRemoveOne={(id) => onRemoveOne(id, 'blue')}
         onRemoveSelected={() => onRemoveSelected('blue')}
+        onClearGroup={() => onClearGroup('blue')}
       />
       <GroupColumn
         group="orange"
@@ -167,6 +206,7 @@ export function GroupVideosPanel({
         onMoveSelected={() => onMoveSelected('orange')}
         onRemoveOne={(id) => onRemoveOne(id, 'orange')}
         onRemoveSelected={() => onRemoveSelected('orange')}
+        onClearGroup={() => onClearGroup('orange')}
       />
     </div>
   )

@@ -1,5 +1,6 @@
 import { useState, type ReactElement } from 'react'
 import type { IdeaStatus, Task, TaskType, VideoIdea } from '@shared/types'
+import { CountdownBadge } from '../../components/CountdownBadge'
 import { formatDate } from '../../lib/format'
 import { taskColor } from '../../lib/taskTypeColors'
 import { isTaskOverdue } from '../../lib/taskUrgency'
@@ -90,9 +91,12 @@ export function TaskRow({
           </div>
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
             {task.dueDate && (
-              <span className={overdue ? 'font-medium text-red-300' : ''}>
+              <span
+                className={`flex items-center gap-1 ${overdue ? 'font-medium text-red-300' : ''}`}
+              >
                 📅 {formatDate(task.dueDate)}
                 {task.dueTime ? ` à ${task.dueTime}` : ''}
+                {!isClosed && <CountdownBadge date={task.dueDate} />}
               </span>
             )}
             {types.map((t) => (

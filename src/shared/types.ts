@@ -38,6 +38,16 @@ export type OverviewSectionId = (typeof OVERVIEW_SECTIONS)[number]['id']
 
 export const DEFAULT_OVERVIEW_SECTIONS: OverviewSectionId[] = OVERVIEW_SECTIONS.map((s) => s.id)
 
+// Default 2-column split of the Vue d'ensemble sections, alternating left/right — used both as
+// the fresh-install default and to migrate a pre-column-split settings file (which only had one
+// flat order, rendered by alternating parity) without changing anyone's existing layout.
+export const DEFAULT_OVERVIEW_COLUMN_LEFT: OverviewSectionId[] = DEFAULT_OVERVIEW_SECTIONS.filter(
+  (_, index) => index % 2 === 0
+)
+export const DEFAULT_OVERVIEW_COLUMN_RIGHT: OverviewSectionId[] = DEFAULT_OVERVIEW_SECTIONS.filter(
+  (_, index) => index % 2 === 1
+)
+
 export const TAG_COLOR_PRESETS = [
   '#ef4444',
   '#f97316',
@@ -208,9 +218,12 @@ export interface AppSettings {
   // "Personnalisation" (Paramètres).
   statusColors: Record<IdeaStatus, string>
   showTagsOnIdeaCard: boolean
-  // Vue d'ensemble customization: order is independent from visibility, so dragging a hidden
-  // section doesn't require also showing it, and hiding a section doesn't lose its position.
-  overviewSectionOrder: OverviewSectionId[]
+  // Vue d'ensemble customization: each section belongs to exactly one of the two columns (moving
+  // a section between columns is how the user controls how many sections land on each side, not
+  // just their order), independent from visibility — dragging a hidden section doesn't require
+  // also showing it, and hiding a section doesn't lose its column/position.
+  overviewColumnLeft: OverviewSectionId[]
+  overviewColumnRight: OverviewSectionId[]
   overviewVisibleSections: OverviewSectionId[]
 }
 
@@ -307,7 +320,6 @@ export interface ShorterManagerApi {
     setStatus: (id: number, status: TaskStatus) => Promise<Task>
     reschedule: (id: number, dueDate: string | null, dueTime: string | null) => Promise<Task>
     remove: (id: number) => Promise<void>
-    removeMany: (ids: number[]) => Promise<void>
   }
   app: {
     getInfo: () => Promise<AppInfo>

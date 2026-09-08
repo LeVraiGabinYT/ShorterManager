@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react'
 import type { IdeaStatus, VideoIdea, VideoIdeaInput } from '@shared/types'
 import { useIdeasData } from '../../hooks/useIdeasData'
+import { usePersistedState } from '../../hooks/usePersistedState'
 import {
   DEFAULT_IDEA_FILTERS,
   DEFAULT_IDEA_SORT,
@@ -18,10 +19,17 @@ import { ideasWithUpcomingPublishDate, shiftDateByDays } from '../../lib/schedul
 import { BulkActionsBar } from './BulkActionsBar'
 import { IdeaFilters } from './IdeaFilters'
 import { IdeaFormModal } from './IdeaFormModal'
+import { IdeaKanbanBoard } from './IdeaKanbanBoard'
 import { IdeaListRow } from './IdeaListRow'
 
 const FILTERS_STORAGE_KEY = 'ideasTab.filters'
 const SORT_STORAGE_KEY = 'ideasTab.sort'
+
+type ViewMode = 'list' | 'kanban'
+
+function isViewMode(value: unknown): value is ViewMode {
+  return value === 'list' || value === 'kanban'
+}
 
 function loadStoredFilters(): IdeaFiltersState {
   try {
@@ -87,6 +95,11 @@ export function IdeasTab({
     activateFilterPreset === 'inProgress'
       ? { field: 'publishDate', direction: 'desc' }
       : loadStoredSort()
+  )
+  const [viewMode, setViewMode] = usePersistedState<ViewMode>(
+    'ideasTab.viewMode',
+    'list',
+    isViewMode
   )
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [cleanupResult, setCleanupResult] = useState<string | null>(null)
@@ -204,6 +217,11 @@ export function IdeasTab({
     await refresh()
   }
 
+  async function handleMoveIdea(idea: VideoIdea, status: IdeaStatus): Promise<void> {
+    await window.api.ideas.update(idea.id, { ...toIdeaInput(idea), status })
+    await refresh()
+  }
+
   async function handleBulkSetSeries(seriesId: number | null): Promise<void> {
     await Promise.all(
       selectedIdeas.map((idea) =>
@@ -284,7 +302,29 @@ export function IdeasTab({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-6 py-4">
-        <h1 className="text-lg font-semibold text-gray-100">Idées de vidéos</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-lg font-semibold text-gray-100">Idées de vidéos</h1>
+          <div className="flex gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-1">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`rounded-md px-3 py-1 text-sm transition-colors ${
+                viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              Liste
+            </button>
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={`rounded-md px-3 py-1 text-sm transition-colors ${
+                viewMode === 'kanban'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              Kanban
+            </button>
+          </div>
+        </div>
         <div className="flex items-center gap-3">
           <button
             onClick={handleCleanupDuplicates}
@@ -427,7 +467,9 @@ export function IdeasTab({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 pb-6">
+      <div
+        className={`flex-1 px-6 pb-6 ${viewMode === 'kanban' ? 'overflow-hidden' : 'overflow-y-auto'}`}
+      >
         {loading ? (
           <p className="text-sm text-gray-500">Chargement...</p>
         ) : ideas.length === 0 ? (
@@ -436,6 +478,18 @@ export function IdeasTab({
           </p>
         ) : filteredIdeas.length === 0 ? (
           <p className="text-sm text-gray-500">Aucune idée ne correspond à ces filtres.</p>
+        ) : viewMode === 'kanban' ? (
+          <IdeaKanbanBoard
+            ideas={filteredIdeas}
+            objectsById={objectsById}
+            seriesById={seriesById}
+            tagsById={tagsById}
+            statusColors={settings.statusColors}
+            ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}
+            pendingTaskCountByIdeaId={pendingTaskCountByIdeaId}
+            onSelect={setEditingIdea}
+            onMove={handleMoveIdea}
+          />
         ) : (
           <>
             <div className="mb-2 flex items-center justify-between px-1">

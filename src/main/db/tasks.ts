@@ -140,12 +140,3 @@ export function rescheduleTask(id: number, dueDate: string | null, dueTime: stri
 export function removeTask(id: number): void {
   getDb().prepare('DELETE FROM tasks WHERE id = ?').run(id)
 }
-
-export function removeTasks(ids: number[]): void {
-  const db = getDb()
-  const del = db.prepare('DELETE FROM tasks WHERE id = ?')
-  const txn = db.transaction((taskIds: number[]) => {
-    for (const taskId of taskIds) del.run(taskId)
-  })
-  txn(ids)
-}

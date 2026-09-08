@@ -7,7 +7,12 @@ import type {
   SettingsExportResult,
   SettingsImportResult
 } from '../shared/types'
-import { DEFAULT_OVERVIEW_SECTIONS, DEFAULT_STATUS_COLORS } from '../shared/types'
+import {
+  DEFAULT_OVERVIEW_COLUMN_LEFT,
+  DEFAULT_OVERVIEW_COLUMN_RIGHT,
+  DEFAULT_OVERVIEW_SECTIONS,
+  DEFAULT_STATUS_COLORS
+} from '../shared/types'
 
 const DEFAULT_SETTINGS: AppSettings = {
   maxRecentVideos: 25,
@@ -15,7 +20,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   ruleMissingObjectsPreparation: true,
   statusColors: DEFAULT_STATUS_COLORS,
   showTagsOnIdeaCard: false,
-  overviewSectionOrder: DEFAULT_OVERVIEW_SECTIONS,
+  overviewColumnLeft: DEFAULT_OVERVIEW_COLUMN_LEFT,
+  overviewColumnRight: DEFAULT_OVERVIEW_COLUMN_RIGHT,
   overviewVisibleSections: DEFAULT_OVERVIEW_SECTIONS
 }
 
@@ -27,31 +33,44 @@ function isOverviewSectionId(value: unknown): value is OverviewSectionId {
   return typeof value === 'string' && (DEFAULT_OVERVIEW_SECTIONS as string[]).includes(value)
 }
 
-// Keeps a persisted order list valid even if a future app version renames or adds a section:
-// unknown ids are dropped, and a section missing from an already-saved order (because it didn't
-// exist yet when the user last customized their layout) is inserted at the same relative spot it
-// holds in DEFAULT_OVERVIEW_SECTIONS — not blindly appended at the very end. This matters because
-// "tasks" defaults to the FIRST section: a user who customized their order before the Tâches
-// feature existed must still get it inserted at the front, not tacked on after everything else.
-function sanitizeOverviewOrder(value: unknown): OverviewSectionId[] {
-  const filtered = Array.isArray(value) ? value.filter(isOverviewSectionId) : []
-  if (filtered.length === 0) return [...DEFAULT_OVERVIEW_SECTIONS]
+function sanitizeSectionList(value: unknown): OverviewSectionId[] {
+  return Array.isArray(value) ? value.filter(isOverviewSectionId) : []
+}
 
-  const result = [...filtered]
-  const defaultIndex = new Map(DEFAULT_OVERVIEW_SECTIONS.map((id, i) => [id, i]))
-  for (const id of DEFAULT_OVERVIEW_SECTIONS) {
-    if (result.includes(id)) continue
-    const idx = defaultIndex.get(id) as number
-    let insertAt = result.length
-    for (let i = 0; i < result.length; i++) {
-      if ((defaultIndex.get(result[i]) as number) > idx) {
-        insertAt = i
-        break
-      }
-    }
-    result.splice(insertAt, 0, id)
+// Keeps the two persisted column lists valid even if a future app version renames or adds a
+// section, and migrates a pre-column-split settings file (which only ever had one flat
+// `overviewSectionOrder`, rendered by alternating left/right) so an already-customized layout
+// survives the upgrade unchanged.
+function sanitizeOverviewColumns(parsed: {
+  overviewColumnLeft?: unknown
+  overviewColumnRight?: unknown
+  overviewSectionOrder?: unknown
+}): { overviewColumnLeft: OverviewSectionId[]; overviewColumnRight: OverviewSectionId[] } {
+  let left = sanitizeSectionList(parsed.overviewColumnLeft)
+  let right = sanitizeSectionList(parsed.overviewColumnRight)
+
+  if (left.length === 0 && right.length === 0) {
+    const legacyOrder = sanitizeSectionList(parsed.overviewSectionOrder)
+    left = legacyOrder.filter((_, i) => i % 2 === 0)
+    right = legacyOrder.filter((_, i) => i % 2 === 1)
   }
-  return result
+
+  // A section hand-edited into both columns stays only in the one it was declared first for.
+  right = right.filter((id) => !left.includes(id))
+  left = [...new Set(left)]
+  right = [...new Set(right)]
+
+  // A section neither column knows about yet (new in this app version, or an empty legacy order)
+  // goes to whichever column is currently shorter, keeping the two sides roughly balanced instead
+  // of piling every new section onto one side.
+  const present = new Set([...left, ...right])
+  for (const id of DEFAULT_OVERVIEW_SECTIONS) {
+    if (present.has(id)) continue
+    if (left.length <= right.length) left.push(id)
+    else right.push(id)
+  }
+
+  return { overviewColumnLeft: left, overviewColumnRight: right }
 }
 
 // A section missing from an already-saved visibility list (because it didn't exist yet) defaults
@@ -64,11 +83,15 @@ function sanitizeOverviewVisibility(value: unknown): OverviewSectionId[] {
 }
 
 function mergeWithDefaults(parsed: Partial<AppSettings>): AppSettings {
+  const { overviewColumnLeft, overviewColumnRight } = sanitizeOverviewColumns(
+    parsed as { overviewSectionOrder?: unknown } & Partial<AppSettings>
+  )
   return {
     ...DEFAULT_SETTINGS,
     ...parsed,
     statusColors: { ...DEFAULT_STATUS_COLORS, ...parsed.statusColors },
-    overviewSectionOrder: sanitizeOverviewOrder(parsed.overviewSectionOrder),
+    overviewColumnLeft,
+    overviewColumnRight,
     overviewVisibleSections: sanitizeOverviewVisibility(parsed.overviewVisibleSections)
   }
 }

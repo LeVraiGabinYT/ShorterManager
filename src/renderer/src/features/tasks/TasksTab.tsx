@@ -8,6 +8,7 @@ import type {
   VideoIdeaInput
 } from '@shared/types'
 import { useIdeasData } from '../../hooks/useIdeasData'
+import { usePersistedState } from '../../hooks/usePersistedState'
 import { formatDate } from '../../lib/format'
 import {
   conflictsByTaskId,
@@ -19,6 +20,10 @@ import { TaskFormModal } from './TaskFormModal'
 import { TaskRow } from './TaskRow'
 
 type SubTab = 'liste' | 'proprietes'
+
+function isSubTab(value: unknown): value is SubTab {
+  return value === 'liste' || value === 'proprietes'
+}
 
 function TaskTypeRow({
   type,
@@ -199,7 +204,7 @@ export function TasksTab(): ReactElement {
     loading,
     refresh
   } = useIdeasData()
-  const [subTab, setSubTab] = useState<SubTab>('liste')
+  const [subTab, setSubTab] = usePersistedState<SubTab>('tasksTab.subTab', 'liste', isSubTab)
   const [creating, setCreating] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [openIdea, setOpenIdea] = useState<VideoIdea | null>(null)
@@ -435,7 +440,9 @@ export function TasksTab(): ReactElement {
                     return (
                       <div key={task.id}>
                         {showDateSeparator && (
-                          <div className="mb-2 mt-4 flex items-center gap-2 first:mt-0">
+                          <div
+                            className={`mb-2 flex items-center gap-2 ${index > 0 ? 'mt-4' : ''}`}
+                          >
                             <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
                               {task.dueDate ? formatDate(task.dueDate) : 'Sans date'}
                             </span>

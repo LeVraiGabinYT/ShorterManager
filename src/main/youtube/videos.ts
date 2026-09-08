@@ -1,4 +1,4 @@
-import { getIdeaById, setIdeaLinkedStatus, createIdea, updateIdea } from '../db/ideas'
+import { getIdeaById, listIdeas, setIdeaLinkedStatus, createIdea, updateIdea } from '../db/ideas'
 import {
   getPublishedVideoIdByYoutubeId,
   linkVideoToIdea as dbLinkVideoToIdea,
@@ -134,6 +134,34 @@ async function upsertVideoMetas(metas: VideoMeta[]): Promise<void> {
   }
 }
 
+/**
+ * A "Programmée" idea whose linked video has picked up views since the last refresh can only mean
+ * one thing: it actually went live between now and then (a still-scheduled premiere/upload always
+ * sits at 0 views — see computeAutoLinkedStatus). Catches that transition automatically instead of
+ * leaving the idea stuck on "Programmée" until someone opens it and notices. Same "Règle" toggle as
+ * the rest of the auto-status-from-real-video behavior, since it's the same kind of automation.
+ */
+function autoPublishScheduledIdeas(): void {
+  if (!loadSettings().ruleAutoStatusOnLink) return
+
+  const videoByIdeaId = new Map(
+    listPublishedVideos()
+      .filter((v) => v.ideaId !== null)
+      .map((v) => [v.ideaId as number, v])
+  )
+
+  for (const idea of listIdeas()) {
+    if (idea.status !== 'scheduled') continue
+    const video = videoByIdeaId.get(idea.id)
+    if (!video || (video.viewCount ?? 0) <= 0) continue
+    setIdeaLinkedStatus(
+      idea.id,
+      'published',
+      video.publishedAt ? video.publishedAt.slice(0, 10) : null
+    )
+  }
+}
+
 export async function refreshRecentVideos(): Promise<PublishedVideo[]> {
   const playlistId = await getUploadsPlaylistId()
   const items = await getRecentPlaylistItems(playlistId)
@@ -148,6 +176,8 @@ export async function refreshRecentVideos(): Promise<PublishedVideo[]> {
       publishedAt: item.contentDetails.videoPublishedAt ?? item.snippet.publishedAt
     }))
   )
+
+  autoPublishScheduledIdeas()
 
   return listPublishedVideos()
 }

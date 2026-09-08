@@ -157,6 +157,11 @@ export function AnalysisTab(): ReactElement {
     removeFromGroup(from, idsToRemove)
   }
 
+  function handleClearGroup(group: GroupId): void {
+    const sourceIds = group === 'blue' ? blueVideoIds : orangeVideoIds
+    removeFromGroup(group, [...sourceIds])
+  }
+
   function toggleSelect(id: string): void {
     setSelectedIds((prev) => {
       const next = new Set(prev)
@@ -262,6 +267,7 @@ export function AnalysisTab(): ReactElement {
                   onMoveSelected={handleMoveSelected}
                   onRemoveOne={handleRemoveOne}
                   onRemoveSelected={handleRemoveSelected}
+                  onClearGroup={handleClearGroup}
                 />
               </>
             )}

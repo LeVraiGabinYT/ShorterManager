@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import type { IdeaStatus, OwnedObject, Series, Tag, VideoIdea } from '@shared/types'
 import { IDEA_STATUSES } from '@shared/types'
+import { CountdownBadge } from '../../components/CountdownBadge'
 import { formatDate } from '../../lib/format'
 import { getEffectiveStatus } from '../../lib/ideaStatus'
 import { getTagChipStyle } from '../../lib/tagColors'
@@ -100,9 +101,13 @@ export function IdeaListRow({
               </span>
             )}
 
-            <span className="shrink-0 text-xs text-gray-400">🎬 {formatDate(idea.shootDate)}</span>
-            <span className="shrink-0 text-xs text-gray-400">
+            <span className="flex shrink-0 items-center gap-1 text-xs text-gray-400">
+              🎬 {formatDate(idea.shootDate)}
+              {status !== 'published' && <CountdownBadge date={idea.shootDate} />}
+            </span>
+            <span className="flex shrink-0 items-center gap-1 text-xs text-gray-400">
               📅 {formatDate(idea.publishDate)}
+              {status !== 'published' && <CountdownBadge date={idea.publishDate} />}
             </span>
           </div>
         </div>

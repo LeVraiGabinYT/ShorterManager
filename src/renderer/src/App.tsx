@@ -1,8 +1,14 @@
 import { useEffect, useState, type ReactElement } from 'react'
 import type { UpdateStatus } from '@shared/types'
 import { UpdateAvailableModal } from './components/UpdateAvailableModal'
+import { usePersistedState } from './hooks/usePersistedState'
 import { OverviewTab } from './features/overview/OverviewTab'
-import { VideosTab, type IdeasFilterPreset, type VideosSubTabId } from './features/videos/VideosTab'
+import {
+  VIDEOS_SUB_TAB_IDS,
+  VideosTab,
+  type IdeasFilterPreset,
+  type VideosSubTabId
+} from './features/videos/VideosTab'
 import { PropertiesTab } from './features/properties/PropertiesTab'
 import { AnalysisTab } from './features/analysis/AnalysisTab'
 import { SettingsTab } from './features/settings/SettingsTab'
@@ -17,9 +23,20 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]['id']
 
+function isVideosSubTabId(value: unknown): value is VideosSubTabId {
+  return typeof value === 'string' && (VIDEOS_SUB_TAB_IDS as readonly string[]).includes(value)
+}
+
 function App(): ReactElement {
-  const [activeTab, setActiveTab] = useState<TabId>('videos')
-  const [videosSubTab, setVideosSubTab] = useState<VideosSubTabId>('ideas')
+  // The main tab always starts on Vue d'ensemble — only which SUB-tab/filter you had open inside
+  // Vidéos is remembered (localStorage) across restarts, same lightweight pattern as the Analyse
+  // tab's groups and the Idées tab's filters.
+  const [activeTab, setActiveTab] = useState<TabId>('overview')
+  const [videosSubTab, setVideosSubTab] = usePersistedState<VideosSubTabId>(
+    'app.videosSubTab',
+    'ideas',
+    isVideosSubTabId
+  )
   const [ideasFilterPreset, setIdeasFilterPreset] = useState<IdeasFilterPreset>(null)
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' })
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null)

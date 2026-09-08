@@ -14,6 +14,7 @@ const SUB_TABS = [
 ] as const
 
 export type VideosSubTabId = (typeof SUB_TABS)[number]['id']
+export const VIDEOS_SUB_TAB_IDS: VideosSubTabId[] = SUB_TABS.map((t) => t.id)
 
 // Which quick filter preset (see IdeasTab's own "Idées" / "En cours" chips) to activate as soon
 // as the Idées sub-tab mounts — set by whichever caller navigated here, e.g. one of Vue
