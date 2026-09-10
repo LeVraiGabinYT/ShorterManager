@@ -1,23 +1,13 @@
-import { useEffect, useState, type ReactElement } from 'react'
+import { useState, type ReactElement } from 'react'
 import type { OwnedObject, OwnedObjectInput } from '@shared/types'
+import { useIdeasData } from '../../hooks/useIdeasData'
 import { formatDate, formatPrice } from '../../lib/format'
 import { ObjectFormModal } from './ObjectFormModal'
 
 export function ObjectsTab(): ReactElement {
-  const [objects, setObjects] = useState<OwnedObject[]>([])
-  const [loading, setLoading] = useState(true)
+  const { objects, loading, refresh } = useIdeasData()
   const [editingObject, setEditingObject] = useState<OwnedObject | null>(null)
   const [creating, setCreating] = useState(false)
-
-  async function refresh(): Promise<void> {
-    const list = await window.api.objects.list()
-    setObjects(list)
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    refresh()
-  }, [])
 
   async function handleCreate(input: OwnedObjectInput): Promise<void> {
     await window.api.objects.create(input)

@@ -21,6 +21,7 @@ import {
   findWorkflowConflicts,
   sortTasksForDisplay
 } from '../../lib/taskWorkflow'
+import { ObjectPicker } from '../objects/ObjectPicker'
 import { SeriesPicker } from '../series/SeriesPicker'
 import { TagPicker } from '../tags/TagPicker'
 import { TaskFormModal } from '../tasks/TaskFormModal'
@@ -84,10 +85,6 @@ export function IdeaFormModal({
   const [titleError, setTitleError] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
-
-  function toggleObject(id: number): void {
-    setObjectIds((prev) => (prev.includes(id) ? prev.filter((o) => o !== id) : [...prev, id]))
-  }
 
   const pendingTasks = useMemo(() => {
     if (!idea) return []
@@ -380,28 +377,7 @@ export function IdeaFormModal({
                   Aucun objet enregistré pour l’instant (onglet « Objets achetés »).
                 </p>
               ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {objects.map((obj) => {
-                    const selected = objectIds.includes(obj.id)
-                    return (
-                      <button
-                        type="button"
-                        key={obj.id}
-                        onClick={() => toggleObject(obj.id)}
-                        className={`rounded-md border px-2 py-1 text-xs transition-colors ${
-                          selected
-                            ? obj.purchased
-                              ? 'border-blue-500/60 bg-blue-500/20 text-blue-200'
-                              : 'border-red-500/50 bg-red-500/20 text-red-300'
-                            : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
-                        }`}
-                      >
-                        {obj.name}
-                        {!obj.purchased && ' (non acheté)'}
-                      </button>
-                    )
-                  })}
-                </div>
+                <ObjectPicker objects={objects} selectedIds={objectIds} onChange={setObjectIds} />
               )}
             </div>
 

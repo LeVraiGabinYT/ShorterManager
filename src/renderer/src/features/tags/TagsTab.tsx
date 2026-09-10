@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactElement } from 'react'
+import { useState, type ReactElement } from 'react'
 import { TAG_COLOR_PRESETS } from '@shared/types'
 import type { Tag } from '@shared/types'
+import { useIdeasData } from '../../hooks/useIdeasData'
 import { getTagChipStyle } from '../../lib/tagColors'
 
 function TagRow({
@@ -117,19 +118,8 @@ function TagRow({
 }
 
 export function TagsTab(): ReactElement {
-  const [tags, setTags] = useState<Tag[]>([])
-  const [loading, setLoading] = useState(true)
+  const { tags, loading, refresh } = useIdeasData()
   const [newName, setNewName] = useState('')
-
-  async function refresh(): Promise<void> {
-    const list = await window.api.tags.list()
-    setTags(list)
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    refresh()
-  }, [])
 
   async function handleCreate(): Promise<void> {
     const trimmed = newName.trim()

@@ -659,7 +659,7 @@ export function SettingsTab(): ReactElement {
                   </span>
                   <span className="block text-xs text-gray-500">
                     Montre les tags de chaque idée directement dans les listes (Idées, Vue
-                    d’ensemble, Plannings, Séries).
+                    d’ensemble, Séries).
                   </span>
                 </span>
               </label>

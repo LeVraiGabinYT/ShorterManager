@@ -1,14 +1,12 @@
 import type { ReactElement } from 'react'
 import { ChannelTab } from '../channel/ChannelTab'
 import { IdeasTab } from '../ideas/IdeasTab'
-import { PlanningsTab } from '../plannings/PlanningsTab'
 import { SeriesTab } from '../series/SeriesTab'
 import { TasksTab } from '../tasks/TasksTab'
 
 const SUB_TABS = [
-  { id: 'plannings', label: 'Plannings' },
-  { id: 'tasks', label: 'Tâches' },
   { id: 'ideas', label: 'Idées' },
+  { id: 'tasks', label: 'Tâches' },
   { id: 'series', label: 'Séries' },
   { id: 'channel', label: 'Chaîne YouTube' }
 ] as const
@@ -56,14 +54,13 @@ export function VideosTab({
       </nav>
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        {activeSubTab === 'plannings' && <PlanningsTab />}
-        {activeSubTab === 'tasks' && <TasksTab />}
         {activeSubTab === 'ideas' && (
           <IdeasTab
             activateFilterPreset={ideasFilterPreset ?? undefined}
             onFilterPresetActivated={onIdeasFilterPresetConsumed}
           />
         )}
+        {activeSubTab === 'tasks' && <TasksTab />}
         {activeSubTab === 'series' && <SeriesTab />}
         {activeSubTab === 'channel' && <ChannelTab />}
       </div>

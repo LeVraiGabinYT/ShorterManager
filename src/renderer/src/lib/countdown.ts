@@ -1,6 +1,8 @@
-// A compact "days from now" reading for a date — "J-3" (in 3 days), "Aujourd'hui", "J+2" (2 days
+// A compact "days from now" reading for a date — "J+3" (in 3 days), "Aujourd'hui", "J-2" (2 days
 // ago) — so a shoot/publish/due date can be scanned at a glance instead of mentally computing an
-// offset from a raw calendar date every time.
+// offset from a raw calendar date every time. Deliberately the plain-arithmetic reading (+ = future,
+// - = past) rather than the traditional "D-day" convention (J-1 = day before, J+1 = day after) —
+// more intuitive for dates that are mostly upcoming deadlines to prepare for.
 export type CountdownTone = 'urgent' | 'soon' | 'today' | 'neutral' | 'past'
 
 export interface Countdown {
@@ -20,13 +22,13 @@ export function formatCountdown(dateStr: string | null, now: Date = new Date()):
 
   if (days === 0) return { label: 'Aujourd’hui', tone: 'today' }
   if (days > 0) {
-    const label = `J-${days}`
+    const label = `J+${days}`
     if (days === 1) return { label, tone: 'urgent' }
     if (days <= 3) return { label, tone: 'soon' }
     return { label, tone: 'neutral' }
   }
 
-  const label = `J+${Math.abs(days)}`
+  const label = `J-${Math.abs(days)}`
   return { label, tone: days >= -2 ? 'soon' : 'past' }
 }
 
