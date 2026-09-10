@@ -8,7 +8,7 @@ import {
 } from './autoUpdate'
 import { exportBackup, importBackup, pickImportFile, wipeAllAppData } from './backup'
 import { getReleaseNotes } from './releaseNotes'
-import { getChannelStatus } from './db/channel'
+import { getChannelStats, getChannelStatus } from './db/channel'
 import { createIdea, listIdeas, removeIdea, updateIdea } from './db/ideas'
 import { createObject, listObjects, removeObject, updateObject } from './db/objects'
 import { listPublishedVideos } from './db/publishedVideos'
@@ -42,6 +42,7 @@ import { connectChannel, disconnectChannel } from './youtube/oauth'
 import {
   createIdeaFromVideo,
   linkVideoToIdea,
+  refreshChannelStats,
   refreshRecentVideos,
   searchChannelVideos,
   setVideoTags,
@@ -110,6 +111,17 @@ export function registerIpcHandlers(): void {
       return { videos: await searchChannelVideos(query) }
     } catch (error) {
       return { videos: [], error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+  ipcMain.handle('channel:getStats', () => getChannelStats())
+  ipcMain.handle('channel:refreshStats', async () => {
+    try {
+      return { stats: await refreshChannelStats() }
+    } catch (error) {
+      return {
+        stats: getChannelStats(),
+        error: error instanceof Error ? error.message : String(error)
+      }
     }
   })
 

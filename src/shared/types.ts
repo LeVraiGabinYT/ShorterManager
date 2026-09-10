@@ -48,6 +48,36 @@ export const DEFAULT_OVERVIEW_COLUMN_RIGHT: OverviewSectionId[] = DEFAULT_OVERVI
   (_, index) => index % 2 === 1
 )
 
+// Onglet Stats: the master list of available stat cards, each individually toggleable
+// (Paramètres) — the id/label pair here is the single source of truth for both the settings
+// checklist and the card registry (src/renderer/src/features/stats/statCards.ts), which supplies
+// the actual value + icon per id. Order here is the display order; a disabled card is simply not
+// rendered, so the grid reflows on its own — no separate position bookkeeping needed.
+export const STAT_CARDS = [
+  { id: 'subscribers', label: 'Abonnés' },
+  { id: 'totalChannelViews', label: 'Vues totales (chaîne)' },
+  { id: 'channelVideoCount', label: 'Vidéos en ligne (chaîne)' },
+  { id: 'localPublishedVideos', label: 'Vidéos suivies' },
+  { id: 'ideasTotal', label: 'Idées (total)' },
+  { id: 'ideasInProgress', label: 'Idées en cours' },
+  { id: 'ideasScheduled', label: 'Idées programmées' },
+  { id: 'ideasPublished', label: 'Idées publiées' },
+  { id: 'tagsCount', label: 'Tags' },
+  { id: 'seriesCount', label: 'Séries' },
+  { id: 'objectsCount', label: 'Objets (total)' },
+  { id: 'objectsPurchased', label: 'Objets achetés' },
+  { id: 'objectsMissing', label: 'Objets manquants' },
+  { id: 'tasksPending', label: 'Tâches en attente' },
+  { id: 'tasksOverdue', label: 'Tâches en retard' },
+  { id: 'avgViewsPerVideo', label: 'Vues moyennes / vidéo' },
+  { id: 'totalLikes', label: 'Likes cumulés' },
+  { id: 'totalComments', label: 'Commentaires cumulés' }
+] as const
+
+export type StatCardId = (typeof STAT_CARDS)[number]['id']
+
+export const DEFAULT_STAT_CARDS: StatCardId[] = STAT_CARDS.map((c) => c.id)
+
 export const TAG_COLOR_PRESETS = [
   '#ef4444',
   '#f97316',
@@ -182,6 +212,20 @@ export interface ChannelStatus {
   channelTitle: string | null
 }
 
+// Channel-wide totals (abonnés, vues, nombre de vidéos) — separate from ChannelStatus because
+// these come from a dedicated (cheap but still network) statistics.list call, cached in
+// channel_connection and only refreshed on demand (onglet Stats' "Actualiser" button), never on
+// every app launch like the connection status itself.
+export interface ChannelStats {
+  subscriberCount: number | null
+  // YouTube lets a channel owner hide their subscriber count publicly — when true,
+  // subscriberCount is always null, and the UI should say so rather than showing "—".
+  hiddenSubscriberCount: boolean
+  totalViewCount: number | null
+  videoCount: number | null
+  statsFetchedAt: string | null
+}
+
 export interface ChannelConnectResult {
   success: boolean
   error?: string
@@ -232,6 +276,9 @@ export interface AppSettings {
   // dataset — see SyncResult / performFileSync for the merge algorithm and its limits.
   storageMode: StorageMode
   syncFilePath: string | null
+  // Onglet Stats: which cards are shown, independent from their (fixed) display order — see
+  // STAT_CARDS above.
+  statsVisibleCards: StatCardId[]
 }
 
 export type StorageMode = 'local' | 'file'
@@ -320,6 +367,8 @@ export interface ShorterManagerApi {
     unlinkVideo: (youtubeVideoId: string) => Promise<void>
     setVideoTags: (youtubeVideoId: string, tagIds: number[]) => Promise<void>
     searchVideos: (query: string) => Promise<{ videos: PublishedVideo[]; error?: string }>
+    getStats: () => Promise<ChannelStats>
+    refreshStats: () => Promise<{ stats: ChannelStats; error?: string }>
   }
   series: {
     list: () => Promise<Series[]>

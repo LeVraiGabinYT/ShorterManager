@@ -1,3 +1,4 @@
+import { getChannelStats, saveChannelStats } from '../db/channel'
 import { getIdeaById, listIdeas, setIdeaLinkedStatus, createIdea, updateIdea } from '../db/ideas'
 import {
   getPublishedVideoIdByYoutubeId,
@@ -9,7 +10,7 @@ import {
 } from '../db/publishedVideos'
 import { getValidAccessToken } from './oauth'
 import { loadSettings } from '../settings'
-import type { PublishedVideo, VideoIdea } from '../../shared/types'
+import type { ChannelStats, PublishedVideo, VideoIdea } from '../../shared/types'
 
 /**
  * "Règle" (toggleable in Paramètres): linking a real video normally forces the idea to
@@ -283,4 +284,36 @@ export function setVideoTags(youtubeVideoId: string, tagIds: number[]): void {
   const publishedVideoId = getPublishedVideoIdByYoutubeId(youtubeVideoId)
   if (publishedVideoId === null) throw new Error('Vidéo introuvable.')
   setPublishedVideoTags(publishedVideoId, tagIds)
+}
+
+interface ChannelStatisticsResponse {
+  items?: {
+    statistics: {
+      subscriberCount?: string
+      hiddenSubscriberCount?: boolean
+      viewCount?: string
+      videoCount?: string
+    }
+  }[]
+}
+
+/**
+ * Onglet Stats' "Actualiser" button — a single cheap (1 quota unit) statistics.list call, cached
+ * in channel_connection so every other Stats read is a plain local DB read, not a network call.
+ */
+export async function refreshChannelStats(): Promise<ChannelStats> {
+  const data = await youtubeFetch<ChannelStatisticsResponse>(
+    'https://www.googleapis.com/youtube/v3/channels?part=statistics&mine=true'
+  )
+  const stats = data.items?.[0]?.statistics
+  const hidden = stats?.hiddenSubscriberCount === true
+
+  saveChannelStats({
+    subscriberCount: hidden || !stats?.subscriberCount ? null : Number(stats.subscriberCount),
+    hiddenSubscriberCount: hidden,
+    totalViewCount: stats?.viewCount ? Number(stats.viewCount) : null,
+    videoCount: stats?.videoCount ? Number(stats.videoCount) : null
+  })
+
+  return getChannelStats()
 }

@@ -6,11 +6,12 @@ import type {
   IdeaStatus,
   OverviewSectionId,
   ReleaseNotes,
+  StatCardId,
   StorageMode,
   SyncResult,
   UpdateStatus
 } from '@shared/types'
-import { DEFAULT_STATUS_COLORS, IDEA_STATUSES, OVERVIEW_SECTIONS } from '@shared/types'
+import { DEFAULT_STATUS_COLORS, IDEA_STATUSES, OVERVIEW_SECTIONS, STAT_CARDS } from '@shared/types'
 import { useIdeasData } from '../../hooks/useIdeasData'
 import { formatRelativeTime } from '../../lib/format'
 import { overviewSectionColor } from '../../lib/sectionColors'
@@ -282,6 +283,16 @@ export function SettingsTab(): ReactElement {
       ? settings.overviewVisibleSections.filter((s) => s !== id)
       : [...settings.overviewVisibleSections, id]
     const updated = await window.api.settings.update({ overviewVisibleSections })
+    setSettings(updated)
+  }
+
+  async function handleToggleStatCard(id: StatCardId): Promise<void> {
+    if (!settings) return
+    const isVisible = settings.statsVisibleCards.includes(id)
+    const statsVisibleCards = isVisible
+      ? settings.statsVisibleCards.filter((s) => s !== id)
+      : [...settings.statsVisibleCards, id]
+    const updated = await window.api.settings.update({ statsVisibleCards })
     setSettings(updated)
   }
 
@@ -734,6 +745,37 @@ export function SettingsTab(): ReactElement {
                   })}
                 </div>
               </div>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+          <h2 className="text-sm font-medium text-gray-200">Cartes de l’onglet Stats</h2>
+          <p className="mt-1 text-xs text-gray-500">
+            Coche les cartes à afficher — leur ordre reste fixe, mais la grille se réajuste
+            automatiquement autour de ce qui est coché.
+          </p>
+          {settings && (
+            <div className="mt-3 grid max-w-2xl grid-cols-2 gap-1.5 sm:grid-cols-3">
+              {STAT_CARDS.map((card) => {
+                const visible = settings.statsVisibleCards.includes(card.id)
+                return (
+                  <label
+                    key={card.id}
+                    className={`flex items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-gray-200 transition-opacity ${
+                      visible ? '' : 'opacity-50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={visible}
+                      onChange={() => handleToggleStatCard(card.id)}
+                      className="h-3.5 w-3.5 shrink-0 rounded border-white/20 bg-white/5 accent-blue-600"
+                    />
+                    <span className="truncate">{card.label}</span>
+                  </label>
+                )
+              })}
             </div>
           )}
         </section>

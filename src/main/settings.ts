@@ -6,13 +6,16 @@ import type {
   OverviewSectionId,
   SettingsExportResult,
   SettingsImportResult,
+  StatCardId,
   StorageMode
 } from '../shared/types'
 import {
   DEFAULT_OVERVIEW_COLUMN_LEFT,
   DEFAULT_OVERVIEW_COLUMN_RIGHT,
   DEFAULT_OVERVIEW_SECTIONS,
-  DEFAULT_STATUS_COLORS
+  DEFAULT_STAT_CARDS,
+  DEFAULT_STATUS_COLORS,
+  STAT_CARDS
 } from '../shared/types'
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -25,7 +28,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   overviewColumnRight: DEFAULT_OVERVIEW_COLUMN_RIGHT,
   overviewVisibleSections: DEFAULT_OVERVIEW_SECTIONS,
   storageMode: 'local',
-  syncFilePath: null
+  syncFilePath: null,
+  statsVisibleCards: DEFAULT_STAT_CARDS
 }
 
 function sanitizeStorageMode(value: unknown): StorageMode {
@@ -34,6 +38,19 @@ function sanitizeStorageMode(value: unknown): StorageMode {
 
 function sanitizeSyncFilePath(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value : null
+}
+
+function isStatCardId(value: unknown): value is StatCardId {
+  return typeof value === 'string' && (DEFAULT_STAT_CARDS as string[]).includes(value)
+}
+
+// A card missing from an already-saved visibility list (because it didn't exist yet) defaults to
+// visible, same convention as overviewVisibleSections.
+function sanitizeStatsVisibility(value: unknown): StatCardId[] {
+  const filtered = Array.isArray(value) ? value.filter(isStatCardId) : []
+  if (!Array.isArray(value)) return [...DEFAULT_STAT_CARDS]
+  const missing = STAT_CARDS.map((c) => c.id).filter((id) => !filtered.includes(id))
+  return [...filtered, ...missing]
 }
 
 function getSettingsPath(): string {
@@ -105,7 +122,8 @@ function mergeWithDefaults(parsed: Partial<AppSettings>): AppSettings {
     overviewColumnRight,
     overviewVisibleSections: sanitizeOverviewVisibility(parsed.overviewVisibleSections),
     storageMode: sanitizeStorageMode(parsed.storageMode),
-    syncFilePath: sanitizeSyncFilePath(parsed.syncFilePath)
+    syncFilePath: sanitizeSyncFilePath(parsed.syncFilePath),
+    statsVisibleCards: sanitizeStatsVisibility(parsed.statsVisibleCards)
   }
 }
 

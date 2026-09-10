@@ -154,6 +154,14 @@ function migrate(database: Database.Database): void {
   ensureColumn(database, 'ideas', 'series_id', 'INTEGER REFERENCES series(id) ON DELETE SET NULL')
   ensureColumn(database, 'series', 'emoji', "TEXT NOT NULL DEFAULT '🎬'")
 
+  // Onglet Stats' channel-wide totals (abonnés, vues, nombre de vidéos) — cached here rather than
+  // re-fetched on every Stats tab open, only refreshed on its explicit "Actualiser" button.
+  ensureColumn(database, 'channel_connection', 'subscriber_count', 'INTEGER')
+  ensureColumn(database, 'channel_connection', 'hidden_subscriber_count', 'INTEGER')
+  ensureColumn(database, 'channel_connection', 'total_view_count', 'INTEGER')
+  ensureColumn(database, 'channel_connection', 'video_count', 'INTEGER')
+  ensureColumn(database, 'channel_connection', 'channel_stats_fetched_at', 'TEXT')
+
   // Task types keep a user-orderable "position" (drag-and-drop, Propriétés) — used to detect a
   // task scheduled out of production order and to break same-day ties, but never to auto-create
   // or auto-schedule tasks. An install from before this existed gets its types positioned by id

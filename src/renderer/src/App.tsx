@@ -11,6 +11,7 @@ import {
 } from './features/videos/VideosTab'
 import { PropertiesTab } from './features/properties/PropertiesTab'
 import { AnalysisTab } from './features/analysis/AnalysisTab'
+import { StatsTab } from './features/stats/StatsTab'
 import { SettingsTab } from './features/settings/SettingsTab'
 
 const TABS = [
@@ -18,6 +19,7 @@ const TABS = [
   { id: 'videos', label: 'Vidéos' },
   { id: 'properties', label: 'Propriétés' },
   { id: 'analysis', label: 'Analyse' },
+  { id: 'stats', label: 'Stats' },
   { id: 'settings', label: 'Paramètres' }
 ] as const
 
@@ -124,6 +126,7 @@ function App(): ReactElement {
         )}
         {activeTab === 'properties' && <PropertiesTab />}
         {activeTab === 'analysis' && <AnalysisTab />}
+        {activeTab === 'stats' && <StatsTab />}
         {activeTab === 'settings' && <SettingsTab />}
       </main>
 

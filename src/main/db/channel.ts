@@ -1,5 +1,5 @@
 import { getDb } from './index'
-import type { ChannelStatus } from '../../shared/types'
+import type { ChannelStats, ChannelStatus } from '../../shared/types'
 
 interface ChannelConnectionRow {
   id: number
@@ -9,6 +9,11 @@ interface ChannelConnectionRow {
   refresh_token: string | null
   token_expiry: string | null
   connected_at: string | null
+  subscriber_count: number | null
+  hidden_subscriber_count: number | null
+  total_view_count: number | null
+  video_count: number | null
+  channel_stats_fetched_at: string | null
 }
 
 export interface StoredTokens {
@@ -72,4 +77,39 @@ export function updateAccessToken(accessToken: string, tokenExpiry: string): voi
 
 export function clearChannelConnection(): void {
   getDb().prepare('DELETE FROM channel_connection WHERE id = 1').run()
+}
+
+export function getChannelStats(): ChannelStats {
+  const row = getRow()
+  return {
+    subscriberCount: row?.subscriber_count ?? null,
+    hiddenSubscriberCount: Boolean(row?.hidden_subscriber_count),
+    totalViewCount: row?.total_view_count ?? null,
+    videoCount: row?.video_count ?? null,
+    statsFetchedAt: row?.channel_stats_fetched_at ?? null
+  }
+}
+
+export function saveChannelStats(stats: {
+  subscriberCount: number | null
+  hiddenSubscriberCount: boolean
+  totalViewCount: number | null
+  videoCount: number | null
+}): void {
+  getDb()
+    .prepare(
+      `UPDATE channel_connection SET
+         subscriber_count = @subscriberCount,
+         hidden_subscriber_count = @hiddenSubscriberCount,
+         total_view_count = @totalViewCount,
+         video_count = @videoCount,
+         channel_stats_fetched_at = datetime('now')
+       WHERE id = 1`
+    )
+    .run({
+      subscriberCount: stats.subscriberCount,
+      hiddenSubscriberCount: stats.hiddenSubscriberCount ? 1 : 0,
+      totalViewCount: stats.totalViewCount,
+      videoCount: stats.videoCount
+    })
 }

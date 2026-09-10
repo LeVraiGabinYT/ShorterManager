@@ -47,7 +47,9 @@ const api: ShorterManagerApi = {
       ipcRenderer.invoke('channel:unlinkVideo', youtubeVideoId),
     setVideoTags: (youtubeVideoId: string, tagIds: number[]) =>
       ipcRenderer.invoke('channel:setVideoTags', youtubeVideoId, tagIds),
-    searchVideos: (query: string) => ipcRenderer.invoke('channel:searchVideos', query)
+    searchVideos: (query: string) => ipcRenderer.invoke('channel:searchVideos', query),
+    getStats: () => ipcRenderer.invoke('channel:getStats'),
+    refreshStats: () => ipcRenderer.invoke('channel:refreshStats')
   },
   series: {
     list: () => ipcRenderer.invoke('series:list'),

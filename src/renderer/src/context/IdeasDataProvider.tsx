@@ -13,6 +13,7 @@ import {
   DEFAULT_OVERVIEW_COLUMN_LEFT,
   DEFAULT_OVERVIEW_COLUMN_RIGHT,
   DEFAULT_OVERVIEW_SECTIONS,
+  DEFAULT_STAT_CARDS,
   DEFAULT_STATUS_COLORS
 } from '@shared/types'
 import { IdeasDataContext, type IdeasData } from './ideasDataContext'
@@ -27,7 +28,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   overviewColumnRight: DEFAULT_OVERVIEW_COLUMN_RIGHT,
   overviewVisibleSections: DEFAULT_OVERVIEW_SECTIONS,
   storageMode: 'local',
-  syncFilePath: null
+  syncFilePath: null,
+  statsVisibleCards: DEFAULT_STAT_CARDS
 }
 
 // Fetched ONCE, at the app root — every tab reads the same already-loaded copy instead of each
