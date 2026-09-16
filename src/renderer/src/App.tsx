@@ -11,6 +11,7 @@ import {
 } from './features/videos/VideosTab'
 import { PropertiesTab } from './features/properties/PropertiesTab'
 import { AnalysisTab } from './features/analysis/AnalysisTab'
+import { InspirationsTab } from './features/inspirations/InspirationsTab'
 import { StatsTab } from './features/stats/StatsTab'
 import { SettingsTab } from './features/settings/SettingsTab'
 
@@ -19,6 +20,7 @@ const TABS = [
   { id: 'videos', label: 'Vidéos' },
   { id: 'properties', label: 'Propriétés' },
   { id: 'analysis', label: 'Analyse' },
+  { id: 'inspirations', label: 'Inspirations' },
   { id: 'stats', label: 'Stats' },
   { id: 'settings', label: 'Paramètres' }
 ] as const
@@ -40,6 +42,7 @@ function App(): ReactElement {
     isVideosSubTabId
   )
   const [ideasFilterPreset, setIdeasFilterPreset] = useState<IdeasFilterPreset>(null)
+  const [openIdeaId, setOpenIdeaId] = useState<number | null>(null)
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' })
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null)
 
@@ -52,6 +55,12 @@ function App(): ReactElement {
     setActiveTab('videos')
     setVideosSubTab('ideas')
     setIdeasFilterPreset(preset)
+  }
+
+  function handleNavigateToIdea(ideaId: number): void {
+    setActiveTab('videos')
+    setVideosSubTab('ideas')
+    setOpenIdeaId(ideaId)
   }
 
   // Polls the same status the main process's autoUpdater maintains, so the popup reacts whether
@@ -122,10 +131,15 @@ function App(): ReactElement {
             onSubTabChange={setVideosSubTab}
             ideasFilterPreset={ideasFilterPreset}
             onIdeasFilterPresetConsumed={() => setIdeasFilterPreset(null)}
+            openIdeaId={openIdeaId}
+            onOpenIdeaConsumed={() => setOpenIdeaId(null)}
           />
         )}
         {activeTab === 'properties' && <PropertiesTab />}
         {activeTab === 'analysis' && <AnalysisTab />}
+        {activeTab === 'inspirations' && (
+          <InspirationsTab onNavigateToIdea={handleNavigateToIdea} />
+        )}
         {activeTab === 'stats' && <StatsTab />}
         {activeTab === 'settings' && <SettingsTab />}
       </main>

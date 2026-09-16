@@ -24,6 +24,8 @@ interface VideosTabProps {
   onSubTabChange: (id: VideosSubTabId) => void
   ideasFilterPreset?: IdeasFilterPreset
   onIdeasFilterPresetConsumed?: () => void
+  openIdeaId?: number | null
+  onOpenIdeaConsumed?: () => void
 }
 
 // Sub-tab is controlled by App (not local state) so other tabs — Vue d'ensemble's "Voir les
@@ -33,7 +35,9 @@ export function VideosTab({
   activeSubTab,
   onSubTabChange,
   ideasFilterPreset,
-  onIdeasFilterPresetConsumed
+  onIdeasFilterPresetConsumed,
+  openIdeaId,
+  onOpenIdeaConsumed
 }: VideosTabProps): ReactElement {
   return (
     <div className="flex h-full flex-col">
@@ -58,6 +62,8 @@ export function VideosTab({
           <IdeasTab
             activateFilterPreset={ideasFilterPreset ?? undefined}
             onFilterPresetActivated={onIdeasFilterPresetConsumed}
+            openIdeaId={openIdeaId}
+            onOpenIdeaConsumed={onOpenIdeaConsumed}
           />
         )}
         {activeSubTab === 'tasks' && <TasksTab />}

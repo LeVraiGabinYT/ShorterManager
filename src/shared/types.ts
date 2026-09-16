@@ -206,6 +206,145 @@ export type TaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'typeIds' 
   ideaIds: number[]
 }
 
+// Onglet Inspirations: a freeform mind-map board. Deliberately self-contained — an inspiration
+// "objet" is its own lightweight record, never the dashboard's OwnedObject (see main/db/
+// inspirations.ts). Included in the main data backup (src/main/backup.ts) and has its own
+// dedicated export/import as well (src/main/inspirationsBackup.ts) — still excluded from the
+// file-based multi-device sync system, which only ever covers ideas/objects/tags/séries/tasks/
+// vidéos.
+export interface InspirationVideo {
+  id: number
+  url: string
+  label: string | null
+}
+
+export type InspirationVideoInput = Omit<InspirationVideo, 'id'>
+
+export interface InspirationObject {
+  id: number
+  name: string
+  link: string | null
+}
+
+export type InspirationObjectInput = Omit<InspirationObject, 'id'>
+
+// A custom "Détail" (name/value) field, typed at creation time so the panel can render the right
+// input control — the type is fixed once added, only the name/value are editable afterwards.
+export type InspirationDetailType = 'text' | 'number' | 'textarea'
+
+export interface InspirationDetail {
+  id: number
+  name: string
+  type: InspirationDetailType
+  value: string
+}
+
+export type InspirationDetailInput = Omit<InspirationDetail, 'id'>
+
+// A node's kind decides which extra fields are relevant:
+// - 'idea': title/emoji/description, optionally mirroring a real dashboard idea (linkedIdeaId) —
+//   its stats/status are never copied onto this row, only the id; the renderer resolves them live
+//   from the same ideas/objects/publishedVideos data every other tab already fetches, so a channel
+//   refresh shows up here immediately, on every board, with no extra sync step.
+// - 'youtube_video': also carries a videoUrl/videoThumbnailUrl pair kept in sync with that link
+//   (see main/youtube/oembed.ts).
+// - 'title': just an emoji + title with its own background/font color, purely a visual label.
+// - 'text': a 'title' node plus the same rich-text descriptionHtml body every kind already has,
+//   just also shown directly on the card (not only in the properties panel).
+export type InspirationKind = 'idea' | 'youtube_video' | 'title' | 'text'
+
+export interface Inspiration {
+  id: number
+  boardId: number
+  kind: InspirationKind
+  title: string
+  emoji: string | null
+  // Rich-text content as sanitized-at-the-source HTML (only ever written by, and read back into,
+  // the app's own contentEditable editor — see RichTextEditor.tsx) — bold/italic/size/color come
+  // from inline-styled <span> wrappers around the selected text, nothing else.
+  descriptionHtml: string
+  // Only meaningful for kind === 'youtube_video': the Short/long-video link the card was created
+  // or last edited with, and the thumbnail resolved from it. Both are re-fetched (and overwrite
+  // any prior value, including a manually-edited title) every time this link is set to a new,
+  // successfully-validated URL — never touched otherwise.
+  videoUrl: string | null
+  videoThumbnailUrl: string | null
+  // 'title'/'text' only — CSS color strings (e.g. a TAG_COLOR_PRESETS hex). Null means "use the
+  // card's normal default styling".
+  backgroundColor: string | null
+  fontColor: string | null
+  // 'title'/'text' only — the title text's font size in px. Null means the default card size.
+  fontSize: number | null
+  // 'idea' only — the real dashboard idea (ideas.id) this card mirrors, or null when unlinked.
+  linkedIdeaId: number | null
+  posX: number
+  posY: number
+  createdAt: string
+  updatedAt: string
+  videos: InspirationVideo[]
+  objects: InspirationObject[]
+  details: InspirationDetail[]
+}
+
+export type InspirationInput = Omit<
+  Inspiration,
+  'id' | 'createdAt' | 'updatedAt' | 'videos' | 'objects' | 'details'
+> & {
+  videos: InspirationVideoInput[]
+  objects: InspirationObjectInput[]
+  details: InspirationDetailInput[]
+}
+
+// A connection between two inspiration cards, drawn as a line on the mind-map canvas. Undirected —
+// fromId/toId are canonicalized (fromId < toId) at write time so a link is never stored twice.
+export interface InspirationLink {
+  id: number
+  fromId: number
+  toId: number
+}
+
+// A purely geometric colored rectangle drawn behind cards to visually cluster them ("encadré") —
+// no membership list: a card is "in" a group simply by being positioned inside its bounds. Can
+// itself contain other groups the same way (a frame that fully encloses another one carries it
+// along when dragged, exactly like it does for cards).
+export interface InspirationGroup {
+  id: number
+  boardId: number
+  title: string
+  color: string
+  posX: number
+  posY: number
+  width: number
+  height: number
+}
+
+export type InspirationGroupInput = Omit<InspirationGroup, 'id'>
+
+// One independent mind map — the Inspirations tab can hold any number of these, switched between
+// via tabs, each with its own entirely separate set of cards/links/groups.
+export interface InspirationBoard {
+  id: number
+  name: string
+  position: number
+}
+
+// Resolved from a pasted YouTube Short/video link via the public oEmbed endpoint (no OAuth/API
+// key needed) — see main/youtube/oembed.ts. Unrelated to the channel's own OAuth-backed YouTube
+// Data API integration used elsewhere in the app.
+export interface YouTubeVideoMeta {
+  title: string
+  thumbnailUrl: string
+}
+
+export interface InspirationsImportResult {
+  success: boolean
+  error?: string
+  mode?: BackupMode
+  addedInspirations?: number
+  addedLinks?: number
+  addedGroups?: number
+}
+
 export interface ChannelStatus {
   connected: boolean
   channelId: string | null
@@ -330,6 +469,9 @@ export interface BackupImportResult {
   channelRestored?: boolean
   addedTaskTypes?: number
   addedTasks?: number
+  addedInspirations?: number
+  addedInspirationLinks?: number
+  addedInspirationGroups?: number
 }
 
 export interface ShorterManagerApi {
@@ -390,6 +532,38 @@ export interface ShorterManagerApi {
     setStatus: (id: number, status: TaskStatus) => Promise<Task>
     reschedule: (id: number, dueDate: string | null, dueTime: string | null) => Promise<Task>
     remove: (id: number) => Promise<void>
+  }
+  inspirations: {
+    listBoards: () => Promise<InspirationBoard[]>
+    createBoard: (name: string) => Promise<InspirationBoard>
+    renameBoard: (id: number, name: string) => Promise<InspirationBoard>
+    reorderBoards: (orderedIds: number[]) => Promise<void>
+    // false when this was the last remaining board — the mind map always needs at least one.
+    removeBoard: (id: number) => Promise<boolean>
+
+    list: (boardId: number) => Promise<Inspiration[]>
+    create: (input: InspirationInput) => Promise<Inspiration>
+    update: (id: number, input: InspirationInput) => Promise<Inspiration>
+    updatePosition: (id: number, posX: number, posY: number) => Promise<void>
+    remove: (id: number) => Promise<void>
+    listLinks: (boardId: number) => Promise<InspirationLink[]>
+    createLink: (fromId: number, toId: number) => Promise<InspirationLink | null>
+    removeLink: (id: number) => Promise<void>
+    listGroups: (boardId: number) => Promise<InspirationGroup[]>
+    createGroup: (input: InspirationGroupInput) => Promise<InspirationGroup>
+    updateGroup: (id: number, input: InspirationGroupInput) => Promise<InspirationGroup>
+    removeGroup: (id: number) => Promise<void>
+    fetchYoutubeMeta: (url: string) => Promise<YouTubeVideoMeta | null>
+    // Exports/imports exactly one board at a time — import always merges or replaces into
+    // `targetBoardId` (the renderer composes createBoard() + importBoard('merge', ...) for an
+    // "import as a new board" flow rather than this needing a third mode).
+    exportBoard: (boardId: number) => Promise<BackupExportResult>
+    pickImportBoardFile: () => Promise<string | null>
+    importBoard: (
+      filePath: string,
+      mode: BackupMode,
+      targetBoardId: number
+    ) => Promise<InspirationsImportResult>
   }
   app: {
     getInfo: () => Promise<AppInfo>

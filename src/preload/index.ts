@@ -3,6 +3,8 @@ import { electronAPI } from '@electron-toolkit/preload'
 import type {
   AppSettings,
   BackupMode,
+  InspirationGroupInput,
+  InspirationInput,
   OwnedObjectInput,
   ShorterManagerApi,
   TagInput,
@@ -73,6 +75,38 @@ const api: ShorterManagerApi = {
     reschedule: (id: number, dueDate: string | null, dueTime: string | null) =>
       ipcRenderer.invoke('tasks:reschedule', id, dueDate, dueTime),
     remove: (id: number) => ipcRenderer.invoke('tasks:remove', id)
+  },
+  inspirations: {
+    listBoards: () => ipcRenderer.invoke('inspirations:listBoards'),
+    createBoard: (name: string) => ipcRenderer.invoke('inspirations:createBoard', name),
+    renameBoard: (id: number, name: string) =>
+      ipcRenderer.invoke('inspirations:renameBoard', id, name),
+    reorderBoards: (orderedIds: number[]) =>
+      ipcRenderer.invoke('inspirations:reorderBoards', orderedIds),
+    removeBoard: (id: number) => ipcRenderer.invoke('inspirations:removeBoard', id),
+
+    list: (boardId: number) => ipcRenderer.invoke('inspirations:list', boardId),
+    create: (input: InspirationInput) => ipcRenderer.invoke('inspirations:create', input),
+    update: (id: number, input: InspirationInput) =>
+      ipcRenderer.invoke('inspirations:update', id, input),
+    updatePosition: (id: number, posX: number, posY: number) =>
+      ipcRenderer.invoke('inspirations:updatePosition', id, posX, posY),
+    remove: (id: number) => ipcRenderer.invoke('inspirations:remove', id),
+    listLinks: (boardId: number) => ipcRenderer.invoke('inspirations:listLinks', boardId),
+    createLink: (fromId: number, toId: number) =>
+      ipcRenderer.invoke('inspirations:createLink', fromId, toId),
+    removeLink: (id: number) => ipcRenderer.invoke('inspirations:removeLink', id),
+    listGroups: (boardId: number) => ipcRenderer.invoke('inspirations:listGroups', boardId),
+    createGroup: (input: InspirationGroupInput) =>
+      ipcRenderer.invoke('inspirations:createGroup', input),
+    updateGroup: (id: number, input: InspirationGroupInput) =>
+      ipcRenderer.invoke('inspirations:updateGroup', id, input),
+    removeGroup: (id: number) => ipcRenderer.invoke('inspirations:removeGroup', id),
+    fetchYoutubeMeta: (url: string) => ipcRenderer.invoke('inspirations:fetchYoutubeMeta', url),
+    exportBoard: (boardId: number) => ipcRenderer.invoke('inspirations:exportBoard', boardId),
+    pickImportBoardFile: () => ipcRenderer.invoke('inspirations:pickImportBoardFile'),
+    importBoard: (filePath: string, mode: BackupMode, targetBoardId: number) =>
+      ipcRenderer.invoke('inspirations:importBoard', filePath, mode, targetBoardId)
   },
   app: {
     getInfo: () => ipcRenderer.invoke('app:getInfo')

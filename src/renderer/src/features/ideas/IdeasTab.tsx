@@ -56,11 +56,18 @@ interface IdeasTabProps {
   // tab doesn't re-apply it.
   activateFilterPreset?: 'ideasOnly' | 'inProgress'
   onFilterPresetActivated?: () => void
+  // Set (e.g. from an Inspirations node's "Accéder à l'idée" button) to open that idea's edit
+  // modal as soon as it's available, instead of requiring the user to find and click it manually.
+  // Consumed once, same pattern as activateFilterPreset above.
+  openIdeaId?: number | null
+  onOpenIdeaConsumed?: () => void
 }
 
 export function IdeasTab({
   activateFilterPreset,
-  onFilterPresetActivated
+  onFilterPresetActivated,
+  openIdeaId,
+  onOpenIdeaConsumed
 }: IdeasTabProps = {}): ReactElement {
   const {
     ideas,
@@ -113,6 +120,18 @@ export function IdeasTab({
     // Only ever meant to run once, right after mount — see the prop's own doc comment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (!openIdeaId) return
+    const idea = ideas.find((i) => i.id === openIdeaId)
+    if (idea) {
+      setEditingIdea(idea)
+      onOpenIdeaConsumed?.()
+    }
+    // Only re-check when the target id changes or once ideas finish loading — not on every ideas
+    // array identity change (a save elsewhere shouldn't re-trigger this).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openIdeaId, ideas.length])
 
   useEffect(() => {
     localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters))

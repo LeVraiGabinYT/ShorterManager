@@ -75,8 +75,8 @@ function ImportConfirmModal({
             <span>
               <span className="block font-medium text-gray-100">Remplacer</span>
               <span className="block text-xs text-gray-400">
-                Efface toutes les données actuelles (idées, objets, tags, séries, vidéos, connexion
-                chaîne) et les remplace par celles du fichier. Irréversible.
+                Efface toutes les données actuelles (idées, objets, tags, séries, vidéos,
+                Inspirations, connexion chaîne) et les remplace par celles du fichier. Irréversible.
               </span>
             </span>
           </label>
@@ -111,14 +111,16 @@ function formatImportSummary(result: BackupImportResult): string {
   if (result.mode === 'replace') {
     return (
       `Remplacement terminé : ${result.addedIdeas ?? 0} idée(s), ${result.addedObjects ?? 0} objet(s), ` +
-      `${result.addedTags ?? 0} tag(s), ${result.addedSeries ?? 0} série(s), ${result.addedVideos ?? 0} vidéo(s) restaurée(s).` +
+      `${result.addedTags ?? 0} tag(s), ${result.addedSeries ?? 0} série(s), ${result.addedVideos ?? 0} vidéo(s), ` +
+      `${result.addedInspirations ?? 0} carte(s) et ${result.addedInspirationGroups ?? 0} cadre(s) Inspirations restauré(s).` +
       (result.channelRestored ? ' Connexion chaîne restaurée.' : '')
     )
   }
 
   return (
     `Fusion terminée : ${result.addedIdeas ?? 0} idée(s) ajoutée(s), ${result.skippedIdeas ?? 0} déjà existante(s) ignorée(s) (même titre), ` +
-    `${result.addedTags ?? 0} tag(s), ${result.addedSeries ?? 0} série(s), ${result.addedObjects ?? 0} objet(s), ${result.addedVideos ?? 0} vidéo(s) ajoutée(s).` +
+    `${result.addedTags ?? 0} tag(s), ${result.addedSeries ?? 0} série(s), ${result.addedObjects ?? 0} objet(s), ${result.addedVideos ?? 0} vidéo(s), ` +
+    `${result.addedInspirations ?? 0} carte(s) et ${result.addedInspirationGroups ?? 0} cadre(s) Inspirations ajouté(s).` +
     (result.relinkedVideos
       ? ` ${result.relinkedVideos} vidéo(s) existante(s) reliée(s) à leur idée.`
       : '') +
@@ -900,8 +902,8 @@ export function SettingsTab(): ReactElement {
         <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
           <h2 className="text-sm font-medium text-gray-200">Sauvegarde des données</h2>
           <p className="mt-1 text-xs text-gray-500">
-            Exporte ou restaure la totalité du tableau de bord : idées, objets, tags, séries, vidéos
-            et connexion à la chaîne.
+            Exporte ou restaure la totalité du tableau de bord : idées, objets, tags, séries,
+            vidéos, Inspirations et connexion à la chaîne.
           </p>
 
           <div className="mt-3 flex flex-wrap gap-2">
@@ -953,8 +955,8 @@ export function SettingsTab(): ReactElement {
           <h2 className="text-sm font-medium text-red-300">Zone dangereuse</h2>
           <p className="mt-1 text-xs text-gray-400">
             Supprime définitivement toutes les données locales (idées, objets, tags, séries, vidéos,
-            connexion à la chaîne) — utile pour tester une restauration depuis une sauvegarde à
-            partir d’un état vide.
+            Inspirations, connexion à la chaîne) — utile pour tester une restauration depuis une
+            sauvegarde à partir d’un état vide.
           </p>
           <button
             onClick={() => setConfirmingWipe(true)}

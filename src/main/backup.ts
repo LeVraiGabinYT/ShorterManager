@@ -1,9 +1,25 @@
 import { app, dialog } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
-import { getDb } from './db/index'
+import { ensureDefaultBoard, getDb } from './db/index'
 import { getChannelStatus, saveChannelConnection } from './db/channel'
 import { createIdea, listIdeas } from './db/ideas'
+import {
+  createInspirationBoard,
+  insertInspirationBoardWithId,
+  listInspirationBoards
+} from './db/inspirationBoards'
+import {
+  addInspirationGroupsFromBackup,
+  listInspirationGroups,
+  replaceAllInspirationGroups
+} from './db/inspirationGroups'
+import {
+  addInspirationsFromBackup,
+  listInspirationLinks,
+  listInspirations,
+  replaceAllInspirations
+} from './db/inspirations'
 import { createObject, listObjects } from './db/objects'
 import {
   getPublishedVideoIdByYoutubeId,
@@ -20,6 +36,10 @@ import type {
   BackupExportResult,
   BackupImportResult,
   BackupMode,
+  Inspiration,
+  InspirationBoard,
+  InspirationGroup,
+  InspirationLink,
   OwnedObject,
   PublishedVideo,
   Series,
@@ -47,6 +67,13 @@ interface BackupChannelConnection {
   tokenExpiry: string
 }
 
+interface BackupBoardData {
+  board: InspirationBoard
+  inspirations: Inspiration[]
+  inspirationLinks: InspirationLink[]
+  inspirationGroups: InspirationGroup[]
+}
+
 interface BackupData {
   version: number
   exportedAt: string
@@ -57,6 +84,9 @@ interface BackupData {
   publishedVideos: PublishedVideo[]
   taskTypes: TaskType[]
   tasks: Task[]
+  // Every Inspirations mind-map board, each with its own cards/links/groups — replaces the old
+  // (pre-multi-board) flat inspirations/inspirationLinks/inspirationGroups arrays.
+  inspirationBoards: BackupBoardData[]
   channelConnection: BackupChannelConnection | null
 }
 
@@ -84,12 +114,18 @@ function buildBackupData(): BackupData {
     publishedVideos: listPublishedVideos(),
     taskTypes: listTaskTypes(),
     tasks: listTasks(),
+    inspirationBoards: listInspirationBoards().map((board) => ({
+      board,
+      inspirations: listInspirations(board.id),
+      inspirationLinks: listInspirationLinks(board.id),
+      inspirationGroups: listInspirationGroups(board.id)
+    })),
     channelConnection: getRawChannelConnection()
   }
 }
 
 /** Directory to suggest for a backup file: next to the app's executable when packaged. */
-function getExportDir(): string {
+export function getExportDir(): string {
   if (!app.isPackaged) return process.cwd()
 
   const exePath = app.getPath('exe')
@@ -104,13 +140,13 @@ function getExportDir(): string {
   return dirname(exePath)
 }
 
-function timestampedFileName(): string {
+export function timestampedFileName(prefix = 'ShorterManager-backup'): string {
   const now = new Date()
   const pad = (n: number): string => String(n).padStart(2, '0')
   const stamp =
     `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` +
     `_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`
-  return `ShorterManager-backup-${stamp}.json`
+  return `${prefix}-${stamp}.json`
 }
 
 export async function exportBackup(): Promise<BackupExportResult> {
@@ -149,6 +185,27 @@ export async function pickImportFile(): Promise<string | null> {
   return result.filePaths[0]
 }
 
+// Backward compatibility with backup files exported before the multi-board Inspirations feature
+// (flat inspirations/inspirationLinks/inspirationGroups arrays, no boards at all) — wraps that
+// shape into a single synthesized board so an old backup still restores cleanly.
+function resolveInspirationBoards(data: BackupData): BackupBoardData[] {
+  if (data.inspirationBoards && data.inspirationBoards.length > 0) return data.inspirationBoards
+  const legacy = data as unknown as {
+    inspirations?: Inspiration[]
+    inspirationLinks?: InspirationLink[]
+    inspirationGroups?: InspirationGroup[]
+  }
+  if (!legacy.inspirations || legacy.inspirations.length === 0) return []
+  return [
+    {
+      board: { id: 1, name: 'Mind map 1', position: 0 },
+      inspirations: legacy.inspirations,
+      inspirationLinks: legacy.inspirationLinks ?? [],
+      inspirationGroups: legacy.inspirationGroups ?? []
+    }
+  ]
+}
+
 function isValidBackupData(data: unknown): data is BackupData {
   if (!data || typeof data !== 'object') return false
   const d = data as Partial<BackupData>
@@ -175,14 +232,21 @@ function wipeAllData(db: ReturnType<typeof getDb>): void {
     DELETE FROM tags;
     DELETE FROM objects;
     DELETE FROM series;
+    DELETE FROM inspiration_boards;
     DELETE FROM channel_connection;
   `)
+  // inspirations/inspiration_groups cascade-deleted along with their board above.
 }
 
 export function wipeAllAppData(): { success: boolean; error?: string } {
   try {
     const db = getDb()
-    db.transaction(() => wipeAllData(db))()
+    db.transaction(() => {
+      wipeAllData(db)
+      // The app must never be left with zero boards mid-session (only a restart re-runs
+      // ensureDefaultBoard() from migrate()), so reseed one immediately.
+      ensureDefaultBoard(db)
+    })()
     return { success: true }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
@@ -191,6 +255,9 @@ export function wipeAllAppData(): { success: boolean; error?: string } {
 
 function importReplace(data: BackupData): BackupImportResult {
   const db = getDb()
+  let restoredInspirations = 0
+  let restoredLinks = 0
+  let restoredGroups = 0
 
   const txn = db.transaction(() => {
     wipeAllData(db)
@@ -328,6 +395,20 @@ function importReplace(data: BackupData): BackupImportResult {
       }
     }
 
+    let restoredBoards = 0
+    for (const boardData of resolveInspirationBoards(data)) {
+      insertInspirationBoardWithId(boardData.board)
+      replaceAllInspirations(boardData.board.id, boardData.inspirations, boardData.inspirationLinks)
+      replaceAllInspirationGroups(boardData.board.id, boardData.inspirationGroups)
+      restoredBoards++
+      restoredInspirations += boardData.inspirations.length
+      restoredLinks += boardData.inspirationLinks.length
+      restoredGroups += boardData.inspirationGroups.length
+    }
+    // A backup with zero boards (a wiped/never-used Inspirations tab) must still leave the app
+    // with somewhere for the mind map to live.
+    if (restoredBoards === 0) ensureDefaultBoard(db)
+
     if (data.channelConnection) {
       db.prepare(
         `INSERT INTO channel_connection
@@ -350,6 +431,9 @@ function importReplace(data: BackupData): BackupImportResult {
     addedVideos: data.publishedVideos.length,
     addedTaskTypes: (data.taskTypes ?? []).length,
     addedTasks: (data.tasks ?? []).length,
+    addedInspirations: restoredInspirations,
+    addedInspirationLinks: restoredLinks,
+    addedInspirationGroups: restoredGroups,
     channelRestored: Boolean(data.channelConnection)
   }
 }
@@ -366,6 +450,9 @@ function importMerge(data: BackupData): BackupImportResult {
   let relinkedVideos = 0
   let addedTaskTypes = 0
   let addedTasks = 0
+  let addedInspirations = 0
+  let addedInspirationLinks = 0
+  let addedInspirationGroups = 0
   let channelRestored = false
 
   const txn = db.transaction(() => {
@@ -539,6 +626,24 @@ function importMerge(data: BackupData): BackupImportResult {
       addedTasks++
     }
 
+    // Mind-map boards/nodes have no natural "same as" key (unlike an idea's title) — every board
+    // in the backup is always added as a brand-new board, its cards/links/groups merged into it,
+    // never deduped against what's already open.
+    for (const boardData of resolveInspirationBoards(data)) {
+      const newBoard = createInspirationBoard(boardData.board.name)
+      const result = addInspirationsFromBackup(
+        newBoard.id,
+        boardData.inspirations,
+        boardData.inspirationLinks
+      )
+      addedInspirations += result.addedInspirations
+      addedInspirationLinks += result.addedLinks
+      addedInspirationGroups += addInspirationGroupsFromBackup(
+        newBoard.id,
+        boardData.inspirationGroups
+      )
+    }
+
     // Never clobber an already-connected channel with an imported one.
     if (data.channelConnection && !getChannelStatus().connected) {
       saveChannelConnection(data.channelConnection)
@@ -560,6 +665,9 @@ function importMerge(data: BackupData): BackupImportResult {
     relinkedVideos,
     addedTaskTypes,
     addedTasks,
+    addedInspirations,
+    addedInspirationLinks,
+    addedInspirationGroups,
     channelRestored
   }
 }

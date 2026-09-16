@@ -10,6 +10,29 @@ import { exportBackup, importBackup, pickImportFile, wipeAllAppData } from './ba
 import { getReleaseNotes } from './releaseNotes'
 import { getChannelStats, getChannelStatus } from './db/channel'
 import { createIdea, listIdeas, removeIdea, updateIdea } from './db/ideas'
+import {
+  createInspirationBoard,
+  listInspirationBoards,
+  removeInspirationBoard,
+  renameInspirationBoard,
+  reorderInspirationBoards
+} from './db/inspirationBoards'
+import {
+  createInspirationGroup,
+  listInspirationGroups,
+  removeInspirationGroup,
+  updateInspirationGroup
+} from './db/inspirationGroups'
+import {
+  createInspiration,
+  createInspirationLink,
+  listInspirationLinks,
+  listInspirations,
+  removeInspiration,
+  removeInspirationLink,
+  updateInspiration,
+  updateInspirationPosition
+} from './db/inspirations'
 import { createObject, listObjects, removeObject, updateObject } from './db/objects'
 import { listPublishedVideos } from './db/publishedVideos'
 import {
@@ -31,6 +54,11 @@ import {
 import { createTaskType, listTaskTypes, removeTaskType, reorderTaskTypes } from './db/taskTypes'
 import { mergeDuplicateIdeas } from './dedupe'
 import {
+  exportInspirationsBoard,
+  importInspirationsBoard,
+  pickInspirationsImportFile
+} from './inspirationsBackup'
+import {
   exportSettings,
   importSettings,
   loadSettings,
@@ -38,6 +66,7 @@ import {
   updateSettings
 } from './settings'
 import { getLastSyncResult, performFileSyncTracked, pickSyncFile } from './sync'
+import { fetchYouTubeVideoMeta } from './youtube/oembed'
 import { connectChannel, disconnectChannel } from './youtube/oauth'
 import {
   createIdeaFromVideo,
@@ -51,6 +80,8 @@ import {
 import type {
   AppSettings,
   BackupMode,
+  InspirationGroupInput,
+  InspirationInput,
   OwnedObjectInput,
   TagInput,
   TaskInput,
@@ -152,6 +183,57 @@ export function registerIpcHandlers(): void {
       rescheduleTask(id, dueDate, dueTime)
   )
   ipcMain.handle('tasks:remove', (_event, id: number) => removeTask(id))
+
+  ipcMain.handle('inspirations:listBoards', () => listInspirationBoards())
+  ipcMain.handle('inspirations:createBoard', (_event, name: string) => createInspirationBoard(name))
+  ipcMain.handle('inspirations:renameBoard', (_event, id: number, name: string) =>
+    renameInspirationBoard(id, name)
+  )
+  ipcMain.handle('inspirations:reorderBoards', (_event, orderedIds: number[]) =>
+    reorderInspirationBoards(orderedIds)
+  )
+  ipcMain.handle('inspirations:removeBoard', (_event, id: number) => removeInspirationBoard(id))
+
+  ipcMain.handle('inspirations:list', (_event, boardId: number) => listInspirations(boardId))
+  ipcMain.handle('inspirations:create', (_event, input: InspirationInput) =>
+    createInspiration(input)
+  )
+  ipcMain.handle('inspirations:update', (_event, id: number, input: InspirationInput) =>
+    updateInspiration(id, input)
+  )
+  ipcMain.handle('inspirations:updatePosition', (_event, id: number, posX: number, posY: number) =>
+    updateInspirationPosition(id, posX, posY)
+  )
+  ipcMain.handle('inspirations:remove', (_event, id: number) => removeInspiration(id))
+  ipcMain.handle('inspirations:listLinks', (_event, boardId: number) =>
+    listInspirationLinks(boardId)
+  )
+  ipcMain.handle('inspirations:createLink', (_event, fromId: number, toId: number) =>
+    createInspirationLink(fromId, toId)
+  )
+  ipcMain.handle('inspirations:removeLink', (_event, id: number) => removeInspirationLink(id))
+  ipcMain.handle('inspirations:listGroups', (_event, boardId: number) =>
+    listInspirationGroups(boardId)
+  )
+  ipcMain.handle('inspirations:createGroup', (_event, input: InspirationGroupInput) =>
+    createInspirationGroup(input)
+  )
+  ipcMain.handle('inspirations:updateGroup', (_event, id: number, input: InspirationGroupInput) =>
+    updateInspirationGroup(id, input)
+  )
+  ipcMain.handle('inspirations:removeGroup', (_event, id: number) => removeInspirationGroup(id))
+  ipcMain.handle('inspirations:fetchYoutubeMeta', (_event, url: string) =>
+    fetchYouTubeVideoMeta(url)
+  )
+  ipcMain.handle('inspirations:exportBoard', (_event, boardId: number) =>
+    exportInspirationsBoard(boardId)
+  )
+  ipcMain.handle('inspirations:pickImportBoardFile', () => pickInspirationsImportFile())
+  ipcMain.handle(
+    'inspirations:importBoard',
+    (_event, filePath: string, mode: BackupMode, targetBoardId: number) =>
+      importInspirationsBoard(filePath, mode, targetBoardId)
+  )
 
   ipcMain.handle('app:getInfo', () => getAppInfo())
 
