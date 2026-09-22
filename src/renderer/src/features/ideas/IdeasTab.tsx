@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react'
-import type { IdeaStatus, VideoIdea, VideoIdeaInput } from '@shared/types'
+import { CONTENT_FORMATS } from '@shared/types'
+import type { ContentFormat, IdeaStatus, VideoIdea, VideoIdeaInput } from '@shared/types'
 import { useIdeasData } from '../../hooks/useIdeasData'
 import { usePersistedState } from '../../hooks/usePersistedState'
 import {
@@ -14,6 +15,7 @@ import {
   type IdeaSortField,
   type IdeaSortState
 } from '../../lib/ideaFilters'
+import { setLastUsedIdeaFormat } from '../../lib/ideaFormatMemory'
 import { toIdeaInput } from '../../lib/ideaInput'
 import { ideasWithUpcomingPublishDate, shiftDateByDays } from '../../lib/scheduleShift'
 import { BulkActionsBar } from './BulkActionsBar'
@@ -22,27 +24,27 @@ import { IdeaFormModal } from './IdeaFormModal'
 import { IdeaKanbanBoard } from './IdeaKanbanBoard'
 import { IdeaListRow } from './IdeaListRow'
 
-const FILTERS_STORAGE_KEY = 'ideasTab.filters'
-const SORT_STORAGE_KEY = 'ideasTab.sort'
-
 type ViewMode = 'list' | 'kanban'
 
 function isViewMode(value: unknown): value is ViewMode {
   return value === 'list' || value === 'kanban'
 }
 
-function loadStoredFilters(): IdeaFiltersState {
+// Shorts and Vidéos longues are two fully separate tabs now (see VideosTab) — each format gets
+// its own filters/sort/view-mode, remembered independently under its own storage key, rather than
+// sharing one "Idées" preference set the way a single format toggle used to.
+function loadStoredFilters(format: ContentFormat): IdeaFiltersState {
   try {
-    const raw = localStorage.getItem(FILTERS_STORAGE_KEY)
+    const raw = localStorage.getItem(`ideasTab.filters.${format}`)
     return raw ? { ...DEFAULT_IDEA_FILTERS, ...JSON.parse(raw) } : DEFAULT_IDEA_FILTERS
   } catch {
     return DEFAULT_IDEA_FILTERS
   }
 }
 
-function loadStoredSort(): IdeaSortState {
+function loadStoredSort(format: ContentFormat): IdeaSortState {
   try {
-    const raw = localStorage.getItem(SORT_STORAGE_KEY)
+    const raw = localStorage.getItem(`ideasTab.sort.${format}`)
     return raw ? { ...DEFAULT_IDEA_SORT, ...JSON.parse(raw) } : DEFAULT_IDEA_SORT
   } catch {
     return DEFAULT_IDEA_SORT
@@ -50,6 +52,9 @@ function loadStoredSort(): IdeaSortState {
 }
 
 interface IdeasTabProps {
+  // Which format this instance of the tab manages — Shorts and Vidéos longues render two
+  // independent instances of IdeasTab (see VideosTab), each locked to its own format.
+  format: ContentFormat
   // Set (e.g. from Vue d'ensemble's "Voir les idées" / "Voir les vidéos en cours" links) to
   // activate the matching quick-filter preset as soon as this tab mounts, instead of whatever was
   // last saved. Consumed once — the caller resets it so a later, unrelated switch back to this
@@ -64,11 +69,12 @@ interface IdeasTabProps {
 }
 
 export function IdeasTab({
+  format,
   activateFilterPreset,
   onFilterPresetActivated,
   openIdeaId,
   onOpenIdeaConsumed
-}: IdeasTabProps = {}): ReactElement {
+}: IdeasTabProps): ReactElement {
   const {
     ideas,
     objects,
@@ -91,20 +97,20 @@ export function IdeasTab({
   const [creating, setCreating] = useState(false)
   const [filters, setFilters] = useState<IdeaFiltersState>(() => {
     if (activateFilterPreset === 'ideasOnly') {
-      return { ...loadStoredFilters(), statuses: IDEA_ONLY_STATUSES }
+      return { ...loadStoredFilters(format), statuses: IDEA_ONLY_STATUSES }
     }
     if (activateFilterPreset === 'inProgress') {
-      return { ...loadStoredFilters(), statuses: IN_PROGRESS_STATUSES }
+      return { ...loadStoredFilters(format), statuses: IN_PROGRESS_STATUSES }
     }
-    return loadStoredFilters()
+    return loadStoredFilters(format)
   })
   const [sort, setSort] = useState<IdeaSortState>(() =>
     activateFilterPreset === 'inProgress'
       ? { field: 'publishDate', direction: 'desc' }
-      : loadStoredSort()
+      : loadStoredSort(format)
   )
   const [viewMode, setViewMode] = usePersistedState<ViewMode>(
-    'ideasTab.viewMode',
+    `ideasTab.viewMode.${format}`,
     'list',
     isViewMode
   )
@@ -134,29 +140,40 @@ export function IdeasTab({
   }, [openIdeaId, ideas.length])
 
   useEffect(() => {
-    localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters))
-  }, [filters])
+    localStorage.setItem(`ideasTab.filters.${format}`, JSON.stringify(filters))
+  }, [format, filters])
 
   useEffect(() => {
-    localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(sort))
-  }, [sort])
+    localStorage.setItem(`ideasTab.sort.${format}`, JSON.stringify(sort))
+  }, [format, sort])
+
+  // Ideas belonging to the other format never even enter this tab's world — every list, count,
+  // filter and bulk action below works off this pre-filtered set, not the full cross-format list.
+  const formatIdeas = useMemo(() => ideas.filter((i) => i.format === format), [ideas, format])
 
   const filteredIdeas = useMemo(
     () =>
       sortIdeas(
-        filterIdeas(ideas, filters, objectsById, tagsById, settings.ruleMissingObjectsPreparation),
+        filterIdeas(
+          formatIdeas,
+          filters,
+          objectsById,
+          tagsById,
+          settings.ruleMissingObjectsPreparation
+        ),
         sort
       ),
-    [ideas, filters, objectsById, tagsById, settings.ruleMissingObjectsPreparation, sort]
+    [formatIdeas, filters, objectsById, tagsById, settings.ruleMissingObjectsPreparation, sort]
   )
   const unlinkedVideos = useMemo(
     () => publishedVideos.filter((v) => v.ideaId === null),
     [publishedVideos]
   )
-  const upcomingIdeas = useMemo(() => ideasWithUpcomingPublishDate(ideas), [ideas])
+  const upcomingIdeas = useMemo(() => ideasWithUpcomingPublishDate(formatIdeas), [formatIdeas])
 
   async function handleCreate(input: VideoIdeaInput): Promise<void> {
     await window.api.ideas.create(input)
+    setLastUsedIdeaFormat(input.format)
     setCreating(false)
     await refresh()
   }
@@ -197,7 +214,7 @@ export function IdeasTab({
     })
   }
 
-  const selectedIdeas = ideas.filter((idea) => selectedIds.has(idea.id))
+  const selectedIdeas = formatIdeas.filter((idea) => selectedIds.has(idea.id))
 
   async function handleBulkAddTag(tagId: number): Promise<void> {
     await Promise.all(
@@ -318,11 +335,15 @@ export function IdeasTab({
     await refresh()
   }
 
+  const formatMeta = CONTENT_FORMATS.find((f) => f.value === format)
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-4">
-          <h1 className="text-lg font-semibold text-gray-100">Idées de vidéos</h1>
+          <h1 className="text-lg font-semibold text-gray-100">
+            {formatMeta?.emoji} {formatMeta?.pluralLabel}
+          </h1>
           <div className="flex gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-1">
             <button
               onClick={() => setViewMode('list')}
@@ -348,9 +369,10 @@ export function IdeasTab({
           <button
             onClick={handleCleanupDuplicates}
             disabled={cleaningUp}
+            title="Fusionne les idées en double et corrige les incohérences de données"
             className="text-sm text-gray-500 hover:text-gray-300 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {cleaningUp ? 'Nettoyage...' : 'Nettoyer les doublons'}
+            {cleaningUp ? 'Mise à jour...' : 'Mettre à jour les données'}
           </button>
 
           {pendingShift === null ? (
@@ -491,9 +513,10 @@ export function IdeasTab({
       >
         {loading ? (
           <p className="text-sm text-gray-500">Chargement...</p>
-        ) : ideas.length === 0 ? (
+        ) : formatIdeas.length === 0 ? (
           <p className="text-sm text-gray-500">
-            Aucune idée pour l’instant. Clique sur « Nouvelle idée » pour commencer.
+            Aucune idée {formatMeta?.pluralLabel.toLowerCase()} pour l’instant. Clique sur «
+            Nouvelle idée » pour commencer.
           </p>
         ) : filteredIdeas.length === 0 ? (
           <p className="text-sm text-gray-500">Aucune idée ne correspond à ces filtres.</p>
@@ -593,6 +616,7 @@ export function IdeasTab({
           existingIdeas={ideas}
           linkedVideo={null}
           unlinkedVideos={unlinkedVideos}
+          defaultFormat={format}
           onClose={() => setCreating(false)}
           onSave={handleCreate}
           ruleMissingObjectsPreparation={settings.ruleMissingObjectsPreparation}

@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import type { PublishedVideo, Tag } from '@shared/types'
+import { useIdeasData } from '../../hooks/useIdeasData'
 import { formatNumber } from '../../lib/format'
 import { getTagChipStyle } from '../../lib/tagColors'
 
@@ -16,6 +17,7 @@ export function VideosPreviewModal({
   tagsById,
   onClose
 }: VideosPreviewModalProps): ReactElement {
+  const { settings } = useIdeasData()
   const sorted = [...videos].sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
 
   return (
@@ -39,9 +41,11 @@ export function VideosPreviewModal({
             <p className="text-sm text-gray-500">Aucune vidéo.</p>
           ) : (
             sorted.map((video) => {
-              const videoTags = video.tagIds
-                .map((id) => tagsById.get(id))
-                .filter((t): t is Tag => t !== undefined)
+              const videoTags = settings.showTagsAndObjects
+                ? video.tagIds
+                    .map((id) => tagsById.get(id))
+                    .filter((t): t is Tag => t !== undefined)
+                : []
               return (
                 <div
                   key={video.youtubeVideoId}

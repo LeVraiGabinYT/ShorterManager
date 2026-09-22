@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   ruleMissingObjectsPreparation: true,
   statusColors: DEFAULT_STATUS_COLORS,
   showTagsOnIdeaCard: false,
+  showTagsAndObjects: true,
   overviewColumnLeft: DEFAULT_OVERVIEW_COLUMN_LEFT,
   overviewColumnRight: DEFAULT_OVERVIEW_COLUMN_RIGHT,
   overviewVisibleSections: DEFAULT_OVERVIEW_SECTIONS,

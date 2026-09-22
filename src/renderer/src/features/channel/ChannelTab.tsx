@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react'
-import type { ChannelStatus, PublishedVideo, VideoIdea } from '@shared/types'
+import type { ChannelStatus, ContentFormat, PublishedVideo, VideoIdea } from '@shared/types'
 import { useIdeasData } from '../../hooks/useIdeasData'
+import { setLastUsedIdeaFormat } from '../../lib/ideaFormatMemory'
 import { toIdeaInput } from '../../lib/ideaInput'
 import { BulkDuplicateModal, type BulkAddPlan } from './BulkDuplicateModal'
 import { ChannelBulkAddControl } from './ChannelBulkAddControl'
@@ -31,6 +32,7 @@ export function ChannelTab(): ReactElement {
   const [duplicateCheck, setDuplicateCheck] = useState<{
     video: PublishedVideo
     existingIdea: VideoIdea
+    format: ContentFormat
   } | null>(null)
   const [bulkDuplicate, setBulkDuplicate] = useState<{
     plans: BulkAddPlan[]
@@ -38,6 +40,7 @@ export function ChannelTab(): ReactElement {
     objectIds: number[]
     seriesId: number | null
     emoji: string
+    format: ContentFormat
   } | null>(null)
 
   useEffect(() => {
@@ -83,17 +86,21 @@ export function ChannelTab(): ReactElement {
     return ideas.find((idea) => idea.title.trim() === title) ?? null
   }
 
-  function handleAddToList(video: PublishedVideo): void {
+  function handleAddToList(video: PublishedVideo, format: ContentFormat): void {
     const existingIdea = findDuplicateIdea(video)
     if (existingIdea) {
-      setDuplicateCheck({ video, existingIdea })
+      setDuplicateCheck({ video, existingIdea, format })
       return
     }
-    createNewIdeaFromVideo(video)
+    createNewIdeaFromVideo(video, format)
   }
 
-  async function createNewIdeaFromVideo(video: PublishedVideo): Promise<void> {
-    await window.api.channel.createIdeaFromVideo(video.youtubeVideoId)
+  async function createNewIdeaFromVideo(
+    video: PublishedVideo,
+    format: ContentFormat
+  ): Promise<void> {
+    await window.api.channel.createIdeaFromVideo(video.youtubeVideoId, format)
+    setLastUsedIdeaFormat(format)
     setSelectedVideo(null)
     setDuplicateCheck(null)
     await refreshIdeasData()
@@ -159,12 +166,13 @@ export function ChannelTab(): ReactElement {
     tagIds: number[],
     objectIds: number[],
     seriesId: number | null,
-    emoji: string
+    emoji: string,
+    format: ContentFormat
   ): Promise<void> {
     for (const plan of plans) {
       const resultingIdea = plan.existingIdea
         ? await window.api.channel.linkVideoToIdea(plan.video.youtubeVideoId, plan.existingIdea.id)
-        : await window.api.channel.createIdeaFromVideo(plan.video.youtubeVideoId)
+        : await window.api.channel.createIdeaFromVideo(plan.video.youtubeVideoId, format)
 
       if (tagIds.length > 0 || objectIds.length > 0 || seriesId !== null || emoji !== '') {
         await window.api.ideas.update(resultingIdea.id, {
@@ -177,6 +185,7 @@ export function ChannelTab(): ReactElement {
       }
     }
 
+    setLastUsedIdeaFormat(format)
     setSelectedIds(new Set())
     setBulkDuplicate(null)
     await refreshIdeasData()
@@ -186,7 +195,8 @@ export function ChannelTab(): ReactElement {
     tagIds: number[],
     objectIds: number[],
     seriesId: number | null,
-    emoji: string
+    emoji: string,
+    format: ContentFormat
   ): void {
     const plans: BulkAddPlan[] = [...selectedIds]
       .map((id) => videosToShow.find((v) => v.youtubeVideoId === id))
@@ -194,9 +204,9 @@ export function ChannelTab(): ReactElement {
       .map((video) => ({ video, existingIdea: findDuplicateIdea(video) }))
 
     if (plans.some((p) => p.existingIdea !== null)) {
-      setBulkDuplicate({ plans, tagIds, objectIds, seriesId, emoji })
+      setBulkDuplicate({ plans, tagIds, objectIds, seriesId, emoji, format })
     } else {
-      applyBulkPlans(plans, tagIds, objectIds, seriesId, emoji)
+      applyBulkPlans(plans, tagIds, objectIds, seriesId, emoji, format)
     }
   }
 
@@ -364,7 +374,7 @@ export function ChannelTab(): ReactElement {
           unlinkedIdeas={unlinkedIdeas}
           tags={tags}
           onClose={() => setSelectedVideo(null)}
-          onAddToList={() => handleAddToList(selectedVideo)}
+          onAddToList={(format) => handleAddToList(selectedVideo, format)}
           onLinkToIdea={(ideaId) => handleLinkToIdea(selectedVideo, ideaId)}
           onUnlink={() => handleUnlink(selectedVideo)}
           onSetTags={(tagIds) => handleSetTags(selectedVideo, tagIds)}
@@ -378,7 +388,7 @@ export function ChannelTab(): ReactElement {
           existingIdea={duplicateCheck.existingIdea}
           tagsById={tagsById}
           onMerge={() => mergeIntoExistingIdea(duplicateCheck.video, duplicateCheck.existingIdea)}
-          onCreateNew={() => createNewIdeaFromVideo(duplicateCheck.video)}
+          onCreateNew={() => createNewIdeaFromVideo(duplicateCheck.video, duplicateCheck.format)}
           onCancel={() => setDuplicateCheck(null)}
         />
       )}
@@ -393,7 +403,8 @@ export function ChannelTab(): ReactElement {
               bulkDuplicate.tagIds,
               bulkDuplicate.objectIds,
               bulkDuplicate.seriesId,
-              bulkDuplicate.emoji
+              bulkDuplicate.emoji,
+              bulkDuplicate.format
             )
           }
           onMergeAndAddAll={() =>
@@ -402,7 +413,8 @@ export function ChannelTab(): ReactElement {
               bulkDuplicate.tagIds,
               bulkDuplicate.objectIds,
               bulkDuplicate.seriesId,
-              bulkDuplicate.emoji
+              bulkDuplicate.emoji,
+              bulkDuplicate.format
             )
           }
         />

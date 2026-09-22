@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import type { PublishedVideo, Tag } from '@shared/types'
+import { useIdeasData } from '../../hooks/useIdeasData'
 import { formatDate } from '../../lib/format'
 import { getTagChipStyle } from '../../lib/tagColors'
 
@@ -18,7 +19,10 @@ export function AnalysisVideoRow({
   onToggle,
   trailingAction
 }: AnalysisVideoRowProps): ReactElement {
-  const tags = video.tagIds.map((id) => tagsById.get(id)).filter(Boolean) as Tag[]
+  const { settings } = useIdeasData()
+  const tags = settings.showTagsAndObjects
+    ? (video.tagIds.map((id) => tagsById.get(id)).filter(Boolean) as Tag[])
+    : []
 
   return (
     <label

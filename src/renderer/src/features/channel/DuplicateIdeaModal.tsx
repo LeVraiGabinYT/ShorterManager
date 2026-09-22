@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import type { PublishedVideo, Tag, VideoIdea } from '@shared/types'
+import { useIdeasData } from '../../hooks/useIdeasData'
 import { formatDate } from '../../lib/format'
 import { getTagChipStyle } from '../../lib/tagColors'
 
@@ -44,6 +45,7 @@ export function DuplicateIdeaModal({
   onCreateNew,
   onCancel
 }: DuplicateIdeaModalProps): ReactElement {
+  const { settings } = useIdeasData()
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
       <div className="w-full max-w-lg rounded-xl border border-orange-500/30 bg-[#15161a] p-5 shadow-2xl">
@@ -54,21 +56,28 @@ export function DuplicateIdeaModal({
           <div className="rounded-md border border-white/10 bg-white/[0.03] p-3">
             <h3 className="mb-1.5 text-xs font-medium text-gray-500">Idée existante</h3>
             <p className="text-sm text-gray-300">📅 {formatDate(existingIdea.publishDate)}</p>
-            <div className="mt-1.5">
-              <TagList tagIds={existingIdea.tagIds} tagsById={tagsById} />
-            </div>
+            {settings.showTagsAndObjects && (
+              <div className="mt-1.5">
+                <TagList tagIds={existingIdea.tagIds} tagsById={tagsById} />
+              </div>
+            )}
           </div>
           <div className="rounded-md border border-white/10 bg-white/[0.03] p-3">
             <h3 className="mb-1.5 text-xs font-medium text-gray-500">Vraie vidéo</h3>
             <p className="text-sm text-gray-300">📅 {formatDate(video.publishedAt)}</p>
-            <div className="mt-1.5">
-              <TagList tagIds={video.tagIds} tagsById={tagsById} />
-            </div>
+            {settings.showTagsAndObjects && (
+              <div className="mt-1.5">
+                <TagList tagIds={video.tagIds} tagsById={tagsById} />
+              </div>
+            )}
           </div>
         </div>
 
         <p className="mt-4 text-xs text-gray-500">
-          Fusionner liera la vidéo à l’idée existante (tags combinés, statut et date synchronisés
+          Fusionner liera la vidéo à l’idée existante
+          {settings.showTagsAndObjects
+            ? ' (tags combinés, statut et date synchronisés'
+            : ' (statut et date synchronisés'}{' '}
           sur la vraie vidéo) plutôt que de créer un doublon.
         </p>
 

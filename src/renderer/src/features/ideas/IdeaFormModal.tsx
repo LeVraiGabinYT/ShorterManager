@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent, type ReactElement } from 'react'
-import { DEFAULT_STATUS_COLORS, IDEA_STATUSES } from '@shared/types'
+import { CONTENT_FORMATS, DEFAULT_STATUS_COLORS, IDEA_STATUSES } from '@shared/types'
 import type {
+  ContentFormat,
   IdeaStatus,
   OwnedObject,
   PublishedVideo,
@@ -12,7 +13,9 @@ import type {
   VideoIdea,
   VideoIdeaInput
 } from '@shared/types'
+import { ScriptEditor } from '../../components/ScriptEditor'
 import { SearchablePicker } from '../../components/SearchablePicker'
+import { useIdeasData } from '../../hooks/useIdeasData'
 import { formatDate, toDateInputValue } from '../../lib/format'
 import { taskColor } from '../../lib/taskTypeColors'
 import { isTaskOverdue } from '../../lib/taskUrgency'
@@ -36,6 +39,9 @@ interface IdeaFormModalProps {
   unlinkedVideos: PublishedVideo[]
   ruleMissingObjectsPreparation?: boolean
   defaultSeriesId?: number | null
+  // Format the "Format de contenu" toggle starts on for a brand-new idea — ignored once `idea` is
+  // set (editing always shows that idea's own format). See getLastUsedIdeaFormat's doc comment.
+  defaultFormat?: ContentFormat
   tasks?: Task[]
   taskTypes?: TaskType[]
   taskTypesById?: Map<number, TaskType>
@@ -60,6 +66,7 @@ export function IdeaFormModal({
   unlinkedVideos,
   ruleMissingObjectsPreparation = true,
   defaultSeriesId = null,
+  defaultFormat = 'short',
   tasks = [],
   taskTypes = [],
   taskTypesById = new Map(),
@@ -73,9 +80,12 @@ export function IdeaFormModal({
   onLinkVideo,
   onUnlinkVideo
 }: IdeaFormModalProps): ReactElement {
+  const { settings } = useIdeasData()
   const [title, setTitle] = useState(idea?.title ?? '')
   const [emoji, setEmoji] = useState(idea?.emoji ?? '')
   const [description, setDescription] = useState(idea?.description ?? '')
+  const [script, setScript] = useState(idea?.script ?? '')
+  const [format, setFormat] = useState<ContentFormat>(idea?.format ?? defaultFormat)
   const [status, setStatus] = useState<VideoIdeaInput['status']>(idea?.status ?? 'idea')
   const [publishDate, setPublishDate] = useState(toDateInputValue(idea?.publishDate ?? null))
   const [shootDate, setShootDate] = useState(toDateInputValue(idea?.shootDate ?? null))
@@ -135,6 +145,8 @@ export function IdeaFormModal({
       title: trimmedTitle,
       emoji: emoji.trim() || null,
       description: description.trim() || null,
+      script: script.trim() || null,
+      format,
       status,
       publishDate: publishDate || null,
       shootDate: shootDate || null,
@@ -155,14 +167,39 @@ export function IdeaFormModal({
             {idea ? "Modifier l'idée" : 'Nouvelle idée'}
           </h2>
 
-          {ruleMissingObjectsPreparation && missingObjects && status !== 'published' && (
-            <p className="mt-3 rounded-md border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-xs text-orange-300">
-              Objets manquants : cette idée s’affiche comme « Préparation » tant que tous les objets
-              nécessaires ne sont pas marqués comme achetés.
-            </p>
-          )}
+          {settings.showTagsAndObjects &&
+            ruleMissingObjectsPreparation &&
+            missingObjects &&
+            status !== 'published' && (
+              <p className="mt-3 rounded-md border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-xs text-orange-300">
+                Objets manquants : cette idée s’affiche comme « Préparation » tant que tous les
+                objets nécessaires ne sont pas marqués comme achetés.
+              </p>
+            )}
 
           <div className="mt-4 space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1">
+                Format de contenu
+              </label>
+              <div className="flex gap-1 rounded-md border border-white/10 bg-white/5 p-1">
+                {CONTENT_FORMATS.map((f) => (
+                  <button
+                    key={f.value}
+                    type="button"
+                    onClick={() => setFormat(f.value)}
+                    className={`flex-1 rounded px-3 py-1.5 text-sm transition-colors ${
+                      format === f.value
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    {f.emoji} {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="flex gap-2">
               <div className="w-16 shrink-0">
                 <label className="block text-xs font-medium text-gray-400 mb-1">Émoji</label>
@@ -201,8 +238,13 @@ export function IdeaFormModal({
                 onChange={(e) => setDescription(e.target.value)}
                 rows={4}
                 className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500/60 resize-none"
-                placeholder="Notes, script, angle de la vidéo..."
+                placeholder="Notes, angle de la vidéo, contexte..."
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1">Script</label>
+              <ScriptEditor html={script} onChange={setScript} />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -358,28 +400,32 @@ export function IdeaFormModal({
               </div>
             )}
 
-            <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1">Tags</label>
-              <TagPicker
-                tags={tags}
-                selectedIds={tagIds}
-                onChange={setTagIds}
-                onTagsChanged={onTagsChanged}
-              />
-            </div>
+            {settings.showTagsAndObjects && (
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1">Tags</label>
+                <TagPicker
+                  tags={tags}
+                  selectedIds={tagIds}
+                  onChange={setTagIds}
+                  onTagsChanged={onTagsChanged}
+                />
+              </div>
+            )}
 
-            <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1">
-                Objets nécessaires
-              </label>
-              {objects.length === 0 ? (
-                <p className="text-xs text-gray-600">
-                  Aucun objet enregistré pour l’instant (onglet « Objets achetés »).
-                </p>
-              ) : (
-                <ObjectPicker objects={objects} selectedIds={objectIds} onChange={setObjectIds} />
-              )}
-            </div>
+            {settings.showTagsAndObjects && (
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1">
+                  Objets nécessaires
+                </label>
+                {objects.length === 0 ? (
+                  <p className="text-xs text-gray-600">
+                    Aucun objet enregistré pour l’instant (onglet « Objets achetés »).
+                  </p>
+                ) : (
+                  <ObjectPicker objects={objects} selectedIds={objectIds} onChange={setObjectIds} />
+                )}
+              </div>
+            )}
 
             {onDelete && (
               <div className="mt-6 border-t border-white/10 pt-4">

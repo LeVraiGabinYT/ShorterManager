@@ -230,6 +230,11 @@ function migrate(database: Database.Database): void {
   ensureColumn(database, 'published_videos', 'description', 'TEXT')
   ensureColumn(database, 'ideas', 'series_id', 'INTEGER REFERENCES series(id) ON DELETE SET NULL')
   ensureColumn(database, 'series', 'emoji', "TEXT NOT NULL DEFAULT '🎬'")
+  // Rich-text (HTML) script for the video, written directly on the idea — see ScriptEditor.
+  ensureColumn(database, 'ideas', 'script', 'TEXT')
+  // Content format ('short' | 'long') — defaults every existing idea to 'short' on upgrade, since
+  // that's what the app only ever supported before this column existed.
+  ensureColumn(database, 'ideas', 'format', "TEXT NOT NULL DEFAULT 'short'")
 
   // Onglet Stats' channel-wide totals (abonnés, vues, nombre de vidéos) — cached here rather than
   // re-fetched on every Stats tab open, only refreshed on its explicit "Actualiser" button.

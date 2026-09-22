@@ -5,7 +5,9 @@ interface IdeaRow {
   id: number
   title: string
   description: string | null
+  script: string | null
   emoji: string | null
+  format: string
   status: string
   publish_date: string | null
   shoot_date: string | null
@@ -33,7 +35,9 @@ function toVideoIdea(row: IdeaRow): VideoIdea {
     id: row.id,
     title: row.title,
     description: row.description,
+    script: row.script,
     emoji: row.emoji,
+    format: row.format as VideoIdea['format'],
     status: row.status as VideoIdea['status'],
     publishDate: row.publish_date,
     shootDate: row.shoot_date,
@@ -72,13 +76,15 @@ export function createIdea(input: VideoIdeaInput): VideoIdea {
   const db = getDb()
   const result = db
     .prepare(
-      `INSERT INTO ideas (title, description, emoji, status, publish_date, shoot_date, series_id)
-       VALUES (@title, @description, @emoji, @status, @publishDate, @shootDate, @seriesId)`
+      `INSERT INTO ideas (title, description, script, emoji, format, status, publish_date, shoot_date, series_id)
+       VALUES (@title, @description, @script, @emoji, @format, @status, @publishDate, @shootDate, @seriesId)`
     )
     .run({
       title: input.title,
       description: input.description,
+      script: input.script,
       emoji: input.emoji,
+      format: input.format,
       status: input.status,
       publishDate: input.publishDate,
       shootDate: input.shootDate,
@@ -97,7 +103,9 @@ export function updateIdea(id: number, input: VideoIdeaInput): VideoIdea {
     `UPDATE ideas SET
        title = @title,
        description = @description,
+       script = @script,
        emoji = @emoji,
+       format = @format,
        status = @status,
        publish_date = @publishDate,
        shoot_date = @shootDate,
@@ -108,7 +116,9 @@ export function updateIdea(id: number, input: VideoIdeaInput): VideoIdea {
     id,
     title: input.title,
     description: input.description,
+    script: input.script,
     emoji: input.emoji,
+    format: input.format,
     status: input.status,
     publishDate: input.publishDate,
     shootDate: input.shootDate,

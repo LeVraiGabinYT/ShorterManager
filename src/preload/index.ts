@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import type {
   AppSettings,
   BackupMode,
+  ContentFormat,
   InspirationGroupInput,
   InspirationInput,
   OwnedObjectInput,
@@ -41,8 +42,8 @@ const api: ShorterManagerApi = {
     disconnect: () => ipcRenderer.invoke('channel:disconnect'),
     listVideos: () => ipcRenderer.invoke('channel:listVideos'),
     refreshVideos: () => ipcRenderer.invoke('channel:refreshVideos'),
-    createIdeaFromVideo: (youtubeVideoId: string) =>
-      ipcRenderer.invoke('channel:createIdeaFromVideo', youtubeVideoId),
+    createIdeaFromVideo: (youtubeVideoId: string, format: ContentFormat) =>
+      ipcRenderer.invoke('channel:createIdeaFromVideo', youtubeVideoId, format),
     linkVideoToIdea: (youtubeVideoId: string, ideaId: number) =>
       ipcRenderer.invoke('channel:linkVideoToIdea', youtubeVideoId, ideaId),
     unlinkVideo: (youtubeVideoId: string) =>
@@ -109,7 +110,9 @@ const api: ShorterManagerApi = {
       ipcRenderer.invoke('inspirations:importBoard', filePath, mode, targetBoardId)
   },
   app: {
-    getInfo: () => ipcRenderer.invoke('app:getInfo')
+    getInfo: () => ipcRenderer.invoke('app:getInfo'),
+    getLaunchAtStartup: () => ipcRenderer.invoke('app:getLaunchAtStartup'),
+    setLaunchAtStartup: (enabled: boolean) => ipcRenderer.invoke('app:setLaunchAtStartup', enabled)
   },
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),

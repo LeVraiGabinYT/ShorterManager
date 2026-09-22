@@ -297,10 +297,12 @@ export function replaceAllInspirations(
       descriptionHtml: insp.descriptionHtml,
       videoUrl: insp.videoUrl,
       videoThumbnailUrl: insp.videoThumbnailUrl,
-      backgroundColor: insp.backgroundColor,
-      fontColor: insp.fontColor,
-      fontSize: insp.fontSize,
-      linkedIdeaId: insp.linkedIdeaId,
+      // A backup exported before Titre/Texte nodes existed simply lacks these fields — coalesce
+      // so restoring an old file never trips better-sqlite3's "undefined bound value" error.
+      backgroundColor: insp.backgroundColor ?? null,
+      fontColor: insp.fontColor ?? null,
+      fontSize: insp.fontSize ?? null,
+      linkedIdeaId: insp.linkedIdeaId ?? null,
       posX: insp.posX,
       posY: insp.posY,
       createdAt: insp.createdAt,
@@ -334,9 +336,10 @@ export function addInspirationsFromBackup(
       descriptionHtml: insp.descriptionHtml,
       videoUrl: insp.videoUrl,
       videoThumbnailUrl: insp.videoThumbnailUrl,
-      backgroundColor: insp.backgroundColor,
-      fontColor: insp.fontColor,
-      fontSize: insp.fontSize,
+      // A backup exported before Titre/Texte nodes existed simply lacks these fields.
+      backgroundColor: insp.backgroundColor ?? null,
+      fontColor: insp.fontColor ?? null,
+      fontSize: insp.fontSize ?? null,
       // A linked idea belongs to the dashboard, not to the backup's board scope — importing (from
       // another install, or a shared file) never assumes that idea id still means the same thing
       // locally, so the link is deliberately dropped rather than silently pointing at the wrong idea.

@@ -203,8 +203,12 @@ export function SettingsTab(): ReactElement {
   const [syncing, setSyncing] = useState(false)
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null)
 
+  const [launchAtStartup, setLaunchAtStartupState] = useState<boolean | null>(null)
+  const [launchAtStartupSaving, setLaunchAtStartupSaving] = useState(false)
+
   useEffect(() => {
     window.api.app.getInfo().then(setAppInfo)
+    window.api.app.getLaunchAtStartup().then(setLaunchAtStartupState)
     window.api.updates.getReleaseNotes().then(setReleaseNotes)
     window.api.sync.getLastResult().then(setLastSyncResult)
   }, [])
@@ -245,6 +249,13 @@ export function SettingsTab(): ReactElement {
     await window.api.updates.installNow()
   }
 
+  async function handleToggleLaunchAtStartup(value: boolean): Promise<void> {
+    setLaunchAtStartupSaving(true)
+    const result = await window.api.app.setLaunchAtStartup(value)
+    setLaunchAtStartupState(result)
+    setLaunchAtStartupSaving(false)
+  }
+
   async function handleSaveMaxRecentVideos(): Promise<void> {
     const parsed = Math.min(50, Math.max(1, Math.round(Number(maxRecentVideosInput) || 25)))
     setMaxRecentVideosInput(String(parsed))
@@ -275,6 +286,11 @@ export function SettingsTab(): ReactElement {
 
   async function handleToggleShowTags(value: boolean): Promise<void> {
     const updated = await window.api.settings.update({ showTagsOnIdeaCard: value })
+    setSettings(updated)
+  }
+
+  async function handleToggleShowTagsAndObjects(value: boolean): Promise<void> {
+    const updated = await window.api.settings.update({ showTagsAndObjects: value })
     setSettings(updated)
   }
 
@@ -554,7 +570,26 @@ export function SettingsTab(): ReactElement {
 
         <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
           <h2 className="text-sm font-medium text-gray-200">Général</h2>
-          <div className="mt-3">
+
+          {launchAtStartup !== null && (
+            <label className="mt-3 flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={launchAtStartup}
+                disabled={launchAtStartupSaving}
+                onChange={(e) => handleToggleLaunchAtStartup(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-white/20 bg-white/5 accent-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+              />
+              <span>
+                <span className="block text-gray-200">Lancer au démarrage de Windows</span>
+                <span className="block text-xs text-gray-500">
+                  Ouvre ShorterManager automatiquement à l’ouverture de session.
+                </span>
+              </span>
+            </label>
+          )}
+
+          <div className="mt-4">
             <label className="mb-1 block text-xs font-medium text-gray-400">
               Nombre de vidéos récentes à récupérer lors de l’actualisation de la chaîne
             </label>
@@ -578,6 +613,32 @@ export function SettingsTab(): ReactElement {
               </p>
             )}
           </div>
+        </section>
+
+        <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+          <h2 className="text-sm font-medium text-gray-200">Simplification</h2>
+          <p className="mt-1 text-xs text-gray-500">
+            Masque les tags, les objets et l’onglet Propriétés dans toute l’application — pratique
+            si tu ne t’en sers pas. Rien n’est supprimé : réactive l’option pour tout retrouver tel
+            quel.
+          </p>
+          {settings && (
+            <label className="mt-3 flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={settings.showTagsAndObjects}
+                onChange={(e) => handleToggleShowTagsAndObjects(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-white/20 bg-white/5 accent-blue-600"
+              />
+              <span>
+                <span className="block text-gray-200">Afficher les tags et les objets</span>
+                <span className="block text-xs text-gray-500">
+                  Désactive pour cacher l’onglet Propriétés ainsi que tous les tags et objets dans
+                  les idées, filtres, vidéos et l’Analyse.
+                </span>
+              </span>
+            </label>
+          )}
         </section>
 
         <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">

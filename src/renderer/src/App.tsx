@@ -1,7 +1,8 @@
-import { useEffect, useState, type ReactElement } from 'react'
-import type { UpdateStatus } from '@shared/types'
+import { useEffect, useMemo, useState, type ReactElement } from 'react'
+import type { ContentFormat, UpdateStatus } from '@shared/types'
 import { UpdateAvailableModal } from './components/UpdateAvailableModal'
 import { usePersistedState } from './hooks/usePersistedState'
+import { useIdeasData } from './hooks/useIdeasData'
 import { OverviewTab } from './features/overview/OverviewTab'
 import {
   VIDEOS_SUB_TAB_IDS,
@@ -10,37 +11,58 @@ import {
   type VideosSubTabId
 } from './features/videos/VideosTab'
 import { PropertiesTab } from './features/properties/PropertiesTab'
-import { AnalysisTab } from './features/analysis/AnalysisTab'
-import { InspirationsTab } from './features/inspirations/InspirationsTab'
-import { StatsTab } from './features/stats/StatsTab'
+import { TOOLS_SUB_TAB_IDS, ToolsTab, type ToolsSubTabId } from './features/tools/ToolsTab'
 import { SettingsTab } from './features/settings/SettingsTab'
 
-const TABS = [
+const ALL_TABS = [
   { id: 'overview', label: 'Vue d’ensemble' },
   { id: 'videos', label: 'Vidéos' },
   { id: 'properties', label: 'Propriétés' },
-  { id: 'analysis', label: 'Analyse' },
-  { id: 'inspirations', label: 'Inspirations' },
-  { id: 'stats', label: 'Stats' },
+  { id: 'tools', label: 'Outils' },
   { id: 'settings', label: 'Paramètres' }
 ] as const
 
-type TabId = (typeof TABS)[number]['id']
+type TabId = (typeof ALL_TABS)[number]['id']
 
 function isVideosSubTabId(value: unknown): value is VideosSubTabId {
   return typeof value === 'string' && (VIDEOS_SUB_TAB_IDS as readonly string[]).includes(value)
 }
 
+function isToolsSubTabId(value: unknown): value is ToolsSubTabId {
+  return typeof value === 'string' && (TOOLS_SUB_TAB_IDS as readonly string[]).includes(value)
+}
+
 function App(): ReactElement {
+  const { settings, ideasById } = useIdeasData()
+  // "Propriétés" (tags/objets) is hidden entirely from the nav when the global toggle is off —
+  // the tab, and everything it manages, still exists underneath, just not surfaced.
+  const tabs = useMemo(
+    () => ALL_TABS.filter((tab) => tab.id !== 'properties' || settings.showTagsAndObjects),
+    [settings.showTagsAndObjects]
+  )
+
   // The main tab always starts on Vue d'ensemble — only which SUB-tab/filter you had open inside
-  // Vidéos is remembered (localStorage) across restarts, same lightweight pattern as the Analyse
-  // tab's groups and the Idées tab's filters.
+  // Vidéos is remembered (localStorage) across restarts, same lightweight pattern as the Outils
+  // tab's sub-tab and the Idées tab's filters.
   const [activeTab, setActiveTab] = useState<TabId>('overview')
   const [videosSubTab, setVideosSubTab] = usePersistedState<VideosSubTabId>(
     'app.videosSubTab',
-    'ideas',
+    'shorts',
     isVideosSubTabId
   )
+  const [toolsSubTab, setToolsSubTab] = usePersistedState<ToolsSubTabId>(
+    'app.toolsSubTab',
+    'analysis',
+    isToolsSubTabId
+  )
+
+  // If Propriétés gets hidden while it's the active tab (setting toggled off from elsewhere, or
+  // restored from a settings import), fall back to Vue d'ensemble rather than showing a dead tab.
+  useEffect(() => {
+    if (activeTab === 'properties' && !settings.showTagsAndObjects) {
+      setActiveTab('overview')
+    }
+  }, [activeTab, settings.showTagsAndObjects])
   const [ideasFilterPreset, setIdeasFilterPreset] = useState<IdeasFilterPreset>(null)
   const [openIdeaId, setOpenIdeaId] = useState<number | null>(null)
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' })
@@ -51,15 +73,17 @@ function App(): ReactElement {
     setVideosSubTab('tasks')
   }
 
-  function handleNavigateToIdeas(preset: IdeasFilterPreset): void {
+  // format is undefined when Vue d'ensemble's own Shorts/Longues toggle is on "Tout" — there's no
+  // format signal to go on then, so it defaults to the Shorts tab (the majority case).
+  function handleNavigateToIdeas(preset: IdeasFilterPreset, format?: ContentFormat): void {
     setActiveTab('videos')
-    setVideosSubTab('ideas')
+    setVideosSubTab(format === 'long' ? 'longs' : 'shorts')
     setIdeasFilterPreset(preset)
   }
 
   function handleNavigateToIdea(ideaId: number): void {
     setActiveTab('videos')
-    setVideosSubTab('ideas')
+    setVideosSubTab(ideasById.get(ideaId)?.format === 'long' ? 'longs' : 'shorts')
     setOpenIdeaId(ideaId)
   }
 
@@ -102,7 +126,7 @@ function App(): ReactElement {
   return (
     <div className="flex h-screen flex-col bg-[#0b0c0f]">
       <nav className="flex shrink-0 gap-1 border-b border-white/10 px-4 pt-3">
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
@@ -121,8 +145,8 @@ function App(): ReactElement {
         {activeTab === 'overview' && (
           <OverviewTab
             onNavigateToTasks={handleNavigateToTasks}
-            onNavigateToIdeas={() => handleNavigateToIdeas('ideasOnly')}
-            onNavigateToInProgress={() => handleNavigateToIdeas('inProgress')}
+            onNavigateToIdeas={(format) => handleNavigateToIdeas('ideasOnly', format)}
+            onNavigateToInProgress={(format) => handleNavigateToIdeas('inProgress', format)}
           />
         )}
         {activeTab === 'videos' && (
@@ -135,12 +159,14 @@ function App(): ReactElement {
             onOpenIdeaConsumed={() => setOpenIdeaId(null)}
           />
         )}
-        {activeTab === 'properties' && <PropertiesTab />}
-        {activeTab === 'analysis' && <AnalysisTab />}
-        {activeTab === 'inspirations' && (
-          <InspirationsTab onNavigateToIdea={handleNavigateToIdea} />
+        {activeTab === 'properties' && settings.showTagsAndObjects && <PropertiesTab />}
+        {activeTab === 'tools' && (
+          <ToolsTab
+            activeSubTab={toolsSubTab}
+            onSubTabChange={setToolsSubTab}
+            onNavigateToIdea={handleNavigateToIdea}
+          />
         )}
-        {activeTab === 'stats' && <StatsTab />}
         {activeTab === 'settings' && <SettingsTab />}
       </main>
 

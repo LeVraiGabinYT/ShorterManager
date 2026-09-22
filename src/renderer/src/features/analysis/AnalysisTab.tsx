@@ -52,7 +52,12 @@ function loadStoredGroups(): StoredGroups {
 }
 
 export function AnalysisTab(): ReactElement {
-  const { ideasById, tags, objects, series, tagsById, publishedVideos, loading } = useIdeasData()
+  const { ideasById, tags, objects, series, tagsById, publishedVideos, loading, settings } =
+    useIdeasData()
+  const displayModes = useMemo(
+    () => DISPLAY_MODES.filter((m) => m.id !== 'trends' || settings.showTagsAndObjects),
+    [settings.showTagsAndObjects]
+  )
   // Analyse only ever reasons about videos linked to an idea in the workspace — a video the
   // channel fetched but nobody turned into an idea stays exclusive to the "Chaîne YouTube" tab,
   // never leaking into groups, the add-video picker, or Tendances de chaîne on its own.
@@ -61,12 +66,18 @@ export function AnalysisTab(): ReactElement {
     [publishedVideos]
   )
   const [stored] = useState(loadStoredGroups)
-  const [displayMode, setDisplayMode] = useState<DisplayMode>(stored.displayMode)
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(
+    stored.displayMode === 'trends' && !settings.showTagsAndObjects ? 'dataset' : stored.displayMode
+  )
 
   const [blueVideoIds, setBlueVideoIds] = useState<Set<string>>(() => new Set(stored.blue))
   const [orangeVideoIds, setOrangeVideoIds] = useState<Set<string>>(() => new Set(stored.orange))
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [addModalTarget, setAddModalTarget] = useState<GroupId | null>(null)
+
+  useEffect(() => {
+    if (displayMode === 'trends' && !settings.showTagsAndObjects) setDisplayMode('dataset')
+  }, [displayMode, settings.showTagsAndObjects])
 
   useEffect(() => {
     localStorage.setItem(
@@ -194,7 +205,7 @@ export function AnalysisTab(): ReactElement {
             className={`flex flex-col gap-4 ${displayMode === 'trends' ? 'min-h-0 flex-1' : ''}`}
           >
             <div className="flex shrink-0 gap-1 rounded-md border border-white/10 bg-white/5 p-1">
-              {DISPLAY_MODES.map((mode) => (
+              {displayModes.map((mode) => (
                 <button
                   key={mode.id}
                   type="button"

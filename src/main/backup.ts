@@ -297,8 +297,8 @@ function importReplace(data: BackupData): BackupImportResult {
     }
 
     const insertIdea = db.prepare(
-      `INSERT INTO ideas (id, title, description, emoji, status, publish_date, shoot_date, series_id, created_at, updated_at)
-       VALUES (@id, @title, @description, @emoji, @status, @publishDate, @shootDate, @seriesId, @createdAt, @updatedAt)`
+      `INSERT INTO ideas (id, title, description, script, emoji, format, status, publish_date, shoot_date, series_id, created_at, updated_at)
+       VALUES (@id, @title, @description, @script, @emoji, @format, @status, @publishDate, @shootDate, @seriesId, @createdAt, @updatedAt)`
     )
     const insertIdeaObject = db.prepare(
       'INSERT INTO idea_objects (idea_id, object_id) VALUES (?, ?)'
@@ -310,7 +310,11 @@ function importReplace(data: BackupData): BackupImportResult {
         id: idea.id,
         title: idea.title,
         description: idea.description,
+        // A backup exported before "Script"/"Format" existed simply lacks the field — coalesce so
+        // restoring an old file never trips better-sqlite3's "undefined bound value" error.
+        script: idea.script ?? null,
         emoji: idea.emoji,
+        format: idea.format ?? 'short',
         status: idea.status,
         publishDate: idea.publishDate,
         shootDate: idea.shootDate,
@@ -530,6 +534,8 @@ function importMerge(data: BackupData): BackupImportResult {
         title: idea.title,
         emoji: idea.emoji,
         description: idea.description,
+        script: idea.script ?? null,
+        format: idea.format ?? 'short',
         status: idea.status,
         publishDate: idea.publishDate,
         shootDate: idea.shootDate,

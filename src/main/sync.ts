@@ -257,7 +257,9 @@ function ideasEqual(a: VideoIdea, b: VideoIdea): boolean {
   return (
     a.title.trim() === b.title.trim() &&
     a.description === b.description &&
+    a.script === b.script &&
     a.emoji === b.emoji &&
+    a.format === b.format &&
     a.status === b.status &&
     a.publishDate === b.publishDate &&
     a.shootDate === b.shootDate &&
@@ -398,7 +400,9 @@ function applyIdeaActions(actions: SyncAction<VideoIdea>[]): {
       createIdea({
         title: action.remote.title,
         description: action.remote.description,
+        script: action.remote.script ?? null,
         emoji: action.remote.emoji,
+        format: action.remote.format ?? 'short',
         status: action.remote.status,
         publishDate: action.remote.publishDate,
         shootDate: action.remote.shootDate,
@@ -411,7 +415,9 @@ function applyIdeaActions(actions: SyncAction<VideoIdea>[]): {
       updateIdea(action.local.id, {
         title: action.remote.title,
         description: action.remote.description,
+        script: action.remote.script ?? null,
         emoji: action.remote.emoji,
+        format: action.remote.format ?? 'short',
         status: action.remote.status,
         publishDate: action.remote.publishDate,
         shootDate: action.remote.shootDate,

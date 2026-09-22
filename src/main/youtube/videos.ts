@@ -10,7 +10,7 @@ import {
 } from '../db/publishedVideos'
 import { getValidAccessToken } from './oauth'
 import { loadSettings } from '../settings'
-import type { ChannelStats, PublishedVideo, VideoIdea } from '../../shared/types'
+import type { ChannelStats, ContentFormat, PublishedVideo, VideoIdea } from '../../shared/types'
 
 /**
  * "Règle" (toggleable in Paramètres): linking a real video normally forces the idea to
@@ -223,7 +223,11 @@ export async function searchChannelVideos(query: string): Promise<PublishedVideo
   return listPublishedVideos().filter((v) => foundIds.has(v.youtubeVideoId))
 }
 
-export function createIdeaFromVideo(youtubeVideoId: string): VideoIdea {
+// format has no default on purpose: every caller must decide explicitly which pipeline a new
+// idea belongs to, so TypeScript itself catches a future "create idea from video" entry point
+// that forgets to ask — rather than it silently defaulting to 'short' at runtime unnoticed
+// (which is exactly what happened here before this was tightened up).
+export function createIdeaFromVideo(youtubeVideoId: string, format: ContentFormat): VideoIdea {
   const video = listPublishedVideos().find((v) => v.youtubeVideoId === youtubeVideoId)
   if (!video) throw new Error('Vidéo introuvable.')
 
@@ -233,6 +237,10 @@ export function createIdeaFromVideo(youtubeVideoId: string): VideoIdea {
     title: video.title ?? 'Vidéo sans titre',
     emoji: null,
     description: null,
+    script: null,
+    // A video pulled straight from the channel has no format info of its own — the caller (the
+    // Chaîne tab's own Short/Vidéo longue picker) says which one this is, defaulting to 'short'.
+    format,
     status: autoStatusRule ? computeAutoLinkedStatus(video) : 'idea',
     publishDate: video.publishedAt ? video.publishedAt.slice(0, 10) : null,
     shootDate: null,

@@ -12,6 +12,7 @@ import type {
 } from '@shared/types'
 import { SearchablePicker } from '../../components/SearchablePicker'
 import { formatDate } from '../../lib/format'
+import { getLastUsedIdeaFormat, setLastUsedIdeaFormat } from '../../lib/ideaFormatMemory'
 import { toIdeaInput } from '../../lib/ideaInput'
 import { IdeaFormModal } from '../ideas/IdeaFormModal'
 import { IdeaListRow } from '../ideas/IdeaListRow'
@@ -153,6 +154,7 @@ export function SeriesDetailModal({
 
   async function handleCreateIdea(input: VideoIdeaInput): Promise<void> {
     await window.api.ideas.create(input)
+    setLastUsedIdeaFormat(input.format)
     setCreatingIdea(false)
     await refresh()
   }
@@ -336,6 +338,7 @@ export function SeriesDetailModal({
           unlinkedVideos={unlinkedVideos}
           ruleMissingObjectsPreparation={ruleMissingObjectsPreparation}
           defaultSeriesId={series.id}
+          defaultFormat={getLastUsedIdeaFormat()}
           onClose={() => setCreatingIdea(false)}
           onSave={handleCreateIdea}
           onTagsChanged={refresh}

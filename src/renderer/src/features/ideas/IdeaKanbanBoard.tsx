@@ -1,9 +1,11 @@
 import { useState, type ReactElement } from 'react'
-import { IDEA_STATUSES } from '@shared/types'
+import { CONTENT_FORMATS, IDEA_STATUSES } from '@shared/types'
 import type { IdeaStatus, OwnedObject, PublishedVideo, Series, Tag, VideoIdea } from '@shared/types'
 import { CountdownBadge } from '../../components/CountdownBadge'
+import { useIdeasData } from '../../hooks/useIdeasData'
 import { formatDate, formatNumber } from '../../lib/format'
 import { getEffectiveStatus } from '../../lib/ideaStatus'
+import { ideaUrgencyDate, sortByUrgency } from '../../lib/priority'
 
 const KANBAN_STATUSES = IDEA_STATUSES
 
@@ -47,6 +49,7 @@ function KanbanCard({
   onDragEnd,
   onClick
 }: KanbanCardProps): ReactElement {
+  const { settings } = useIdeasData()
   const series = idea.seriesId !== null ? (seriesById.get(idea.seriesId) ?? null) : null
   const tagCount = idea.tagIds.filter((id) => tagsById.has(id)).length
 
@@ -67,12 +70,17 @@ function KanbanCard({
       </div>
 
       <div className="flex flex-wrap items-center gap-1 text-[10px] text-gray-400">
+        {idea.format === 'long' && (
+          <span className="rounded-full border border-indigo-500/40 bg-indigo-500/20 px-1.5 py-0.5 font-medium text-indigo-300">
+            {CONTENT_FORMATS[1].emoji} {CONTENT_FORMATS[1].label}
+          </span>
+        )}
         {series && (
           <span className="rounded-full border border-violet-500/40 bg-violet-500/20 px-1.5 py-0.5 font-medium text-violet-300">
             {series.name}
           </span>
         )}
-        {missingObjects && (
+        {settings.showTagsAndObjects && missingObjects && (
           <span className="rounded-full border border-red-500/40 bg-red-500/20 px-1.5 py-0.5 font-medium text-red-300">
             Objets manquants
           </span>
@@ -82,7 +90,7 @@ function KanbanCard({
             {pendingTaskCount} tâche{pendingTaskCount > 1 ? 's' : ''}
           </span>
         )}
-        {tagCount > 0 && <span>🏷️ {tagCount}</span>}
+        {settings.showTagsAndObjects && tagCount > 0 && <span>🏷️ {tagCount}</span>}
         {idea.status === 'published' && viewCount !== null && (
           <span className="font-medium text-gray-300">👁️ {formatNumber(viewCount)} vues</span>
         )}
@@ -143,14 +151,24 @@ export function IdeaKanbanBoard({
   return (
     <div className="flex h-full gap-3 overflow-x-auto pb-2">
       {KANBAN_STATUSES.map((column) => {
-        const columnIdeas = ideas.filter(
+        let columnIdeas = ideas.filter(
           (idea) => effectiveById.get(idea.id)?.status === column.value
         )
-        // "Publiée" is the one column ordered by an actual date rather than however `ideas` came
-        // in — most recently posted first, so the top of the column is always "what just went
-        // live," undated ideas (shouldn't normally happen once published) sinking to the bottom.
         if (column.value === 'published') {
-          columnIdeas.sort((a, b) => (b.publishDate ?? '').localeCompare(a.publishDate ?? ''))
+          // "Publiée" is ordered by an actual date rather than however `ideas` came in — most
+          // recently posted first, so the top of the column is always "what just went live,"
+          // undated ideas (shouldn't normally happen once published) sinking to the bottom. A
+          // shoot date here is already in the past and no longer the useful thing to sort by.
+          columnIdeas = [...columnIdeas].sort((a, b) =>
+            (b.publishDate ?? '').localeCompare(a.publishDate ?? '')
+          )
+        } else {
+          // Every other column: soonest date first, using shootDate when it's set and falling
+          // back to publishDate otherwise (ideaUrgencyDate — same rule Vue d'ensemble's sections
+          // use). Sorting by shootDate alone left every idea without one (common once shooting is
+          // done and only a publish date remains, e.g. in "Programmée") tied at the bottom in
+          // whatever order they happened to come in, rather than by their publish date.
+          columnIdeas = sortByUrgency(columnIdeas, ideaUrgencyDate)
         }
         const color = statusColors[column.value]
         return (

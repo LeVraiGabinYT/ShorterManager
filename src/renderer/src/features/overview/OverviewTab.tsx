@@ -1,5 +1,7 @@
 import { useMemo, useState, type ReactElement, type ReactNode } from 'react'
+import { CONTENT_FORMATS } from '@shared/types'
 import type {
+  ContentFormat,
   IdeaStatus,
   OverviewSectionId,
   OwnedObject,
@@ -13,8 +15,9 @@ import type {
   VideoIdeaInput
 } from '@shared/types'
 import { useIdeasData } from '../../hooks/useIdeasData'
+import { usePersistedState } from '../../hooks/usePersistedState'
 import { formatPrice, formatRelativeTime, formatDate } from '../../lib/format'
-import { getEffectiveStatus } from '../../lib/ideaStatus'
+import { getEffectiveStatus, type EffectiveStatus } from '../../lib/ideaStatus'
 import { ideaUrgencyDate, objectsToBuy, sortByUrgency, type ObjectToBuy } from '../../lib/priority'
 import { overviewSectionColor } from '../../lib/sectionColors'
 import {
@@ -34,8 +37,35 @@ const IN_PROGRESS_STATUSES: IdeaStatus[] = ['preparation', 'shooting', 'editing'
 // colors, so this row keeps a stable, distinct look no matter what the user picks in Paramètres.
 const SCHEDULED_CARD_COLOR = '#10b981'
 const LAST_SHORT_CARD_COLOR = '#3b82f6'
+const LAST_LONG_CARD_COLOR = '#6366f1'
 const IN_PROGRESS_CARD_COLOR = '#f97316'
 const IDEAS_CARD_COLOR = '#06b6d4'
+
+type FormatFilter = 'all' | ContentFormat
+
+function isFormatFilter(value: unknown): value is FormatFilter {
+  return value === 'all' || value === 'short' || value === 'long'
+}
+
+// The most recently published idea of a given format — publish date (falling back to shoot date)
+// is what the "Dernier..." stat cards measure time against.
+function findLastPublished(
+  effective: ({ idea: VideoIdea } & EffectiveStatus)[],
+  format: ContentFormat
+): VideoIdea | null {
+  return effective
+    .filter((e) => e.status === 'published' && e.idea.format === format)
+    .map((e) => e.idea)
+    .reduce<VideoIdea | null>((latest, idea) => {
+      const date = idea.publishDate ?? idea.shootDate
+      if (!date) return latest
+      const latestDate = latest ? (latest.publishDate ?? latest.shootDate) : null
+      if (!latest || !latestDate || new Date(date).getTime() > new Date(latestDate).getTime()) {
+        return idea
+      }
+      return latest
+    }, null)
+}
 
 interface StatCardProps {
   label: string
@@ -295,8 +325,10 @@ function TasksSection({
 
 interface OverviewTabProps {
   onNavigateToTasks: () => void
-  onNavigateToIdeas: () => void
-  onNavigateToInProgress: () => void
+  // format is passed along so a click while the Shorts/Longues toggle below is narrowed to one
+  // format lands on that same format's tab in Vidéos — undefined under "Tout".
+  onNavigateToIdeas: (format?: ContentFormat) => void
+  onNavigateToInProgress: (format?: ContentFormat) => void
 }
 
 export function OverviewTab({
@@ -331,6 +363,17 @@ export function OverviewTab({
     [publishedVideos]
   )
 
+  // Shorts and long-form videos publish at very different rhythms (many Shorts a week vs. one
+  // long-form video every 1-2 weeks) — this toggle lets the status sections below focus on just
+  // one format's pipeline instead of the two paces blending together. The two "Dernier..." cards
+  // below stay format-specific regardless of this toggle, since they exist precisely to show both
+  // rhythms side by side at a glance.
+  const [formatFilter, setFormatFilter] = usePersistedState<FormatFilter>(
+    'overview.formatFilter',
+    'all',
+    isFormatFilter
+  )
+
   const effective = useMemo(
     () =>
       ideas.map((idea) => ({
@@ -340,72 +383,73 @@ export function OverviewTab({
     [ideas, objectsById, settings.ruleMissingObjectsPreparation]
   )
 
-  const scheduledCount = effective.filter((e) => e.status === 'scheduled').length
-  const inProgressCount = effective.filter((e) => IN_PROGRESS_STATUSES.includes(e.status)).length
-  const readyCount = effective.filter((e) => e.status === 'ready').length
-  const ideaCount = effective.filter((e) => e.status === 'idea').length
+  const filteredEffective = useMemo(
+    () =>
+      formatFilter === 'all' ? effective : effective.filter((e) => e.idea.format === formatFilter),
+    [effective, formatFilter]
+  )
 
-  // The most recently published idea — its publish date (falling back to shoot date) is what
-  // "Dernier Short" measures time against.
-  const lastPublishedIdea = useMemo(() => {
-    return effective
-      .filter((e) => e.status === 'published')
-      .map((e) => e.idea)
-      .reduce<VideoIdea | null>((latest, idea) => {
-        const date = idea.publishDate ?? idea.shootDate
-        if (!date) return latest
-        const latestDate = latest ? (latest.publishDate ?? latest.shootDate) : null
-        if (!latest || !latestDate || new Date(date).getTime() > new Date(latestDate).getTime()) {
-          return idea
-        }
-        return latest
-      }, null)
-  }, [effective])
-  const lastShortLabel = lastPublishedIdea
-    ? formatRelativeTime(lastPublishedIdea.publishDate ?? lastPublishedIdea.shootDate)
+  const scheduledCount = filteredEffective.filter((e) => e.status === 'scheduled').length
+  const inProgressCount = filteredEffective.filter((e) =>
+    IN_PROGRESS_STATUSES.includes(e.status)
+  ).length
+  const readyCount = filteredEffective.filter((e) => e.status === 'ready').length
+  const ideaCount = filteredEffective.filter((e) => e.status === 'idea').length
+
+  // The most recently published idea of each format — its publish date (falling back to shoot
+  // date) is what the "Dernier..." cards measure time against. Always computed across ALL ideas,
+  // ignoring formatFilter, since the whole point of splitting these two cards by format is to see
+  // both rhythms at once.
+  const lastPublishedShort = useMemo(() => findLastPublished(effective, 'short'), [effective])
+  const lastPublishedLong = useMemo(() => findLastPublished(effective, 'long'), [effective])
+  const lastShortLabel = lastPublishedShort
+    ? formatRelativeTime(lastPublishedShort.publishDate ?? lastPublishedShort.shootDate)
     : 'Aucun'
+  const lastLongLabel = lastPublishedLong
+    ? formatRelativeTime(lastPublishedLong.publishDate ?? lastPublishedLong.shootDate)
+    : 'Aucune'
 
   // Each list is sorted by whichever of an idea's shoot/publish date is soonest, so the most
   // urgent ideas — the ones with a deadline coming up — always surface at the top.
   const preparationIdeas = useMemo(
     () =>
       sortByUrgency(
-        effective.filter((e) => e.status === 'preparation').map((e) => e.idea),
+        filteredEffective.filter((e) => e.status === 'preparation').map((e) => e.idea),
         ideaUrgencyDate
       ),
-    [effective]
+    [filteredEffective]
   )
   const shootingIdeas = useMemo(
     () =>
       sortByUrgency(
-        effective.filter((e) => e.status === 'shooting').map((e) => e.idea),
+        filteredEffective.filter((e) => e.status === 'shooting').map((e) => e.idea),
         ideaUrgencyDate
       ),
-    [effective]
+    [filteredEffective]
   )
   const editingIdeas = useMemo(
     () =>
       sortByUrgency(
-        effective.filter((e) => e.status === 'editing').map((e) => e.idea),
+        filteredEffective.filter((e) => e.status === 'editing').map((e) => e.idea),
         ideaUrgencyDate
       ),
-    [effective]
+    [filteredEffective]
   )
   const toScheduleIdeas = useMemo(
     () =>
       sortByUrgency(
-        effective.filter((e) => e.status === 'ready').map((e) => e.idea),
+        filteredEffective.filter((e) => e.status === 'ready').map((e) => e.idea),
         ideaUrgencyDate
       ),
-    [effective]
+    [filteredEffective]
   )
   const scheduledIdeas = useMemo(
     () =>
       sortByUrgency(
-        effective.filter((e) => e.status === 'scheduled').map((e) => e.idea),
+        filteredEffective.filter((e) => e.status === 'scheduled').map((e) => e.idea),
         ideaUrgencyDate
       ),
-    [effective]
+    [filteredEffective]
   )
 
   const objectsNeeded = useMemo(() => objectsToBuy(objects, ideas), [objects, ideas])
@@ -631,7 +675,7 @@ export function OverviewTab({
           <p className="text-sm text-gray-500">Chargement...</p>
         ) : (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               <StatCard
                 label="Vidéos programmées"
                 value={scheduledCount}
@@ -644,20 +688,64 @@ export function OverviewTab({
                 color={LAST_SHORT_CARD_COLOR}
               />
               <StatCard
+                label="Dernière vidéo longue"
+                value={lastLongLabel}
+                capitalizeValue
+                color={LAST_LONG_CARD_COLOR}
+              />
+              <StatCard
                 label="Vidéos en cours"
                 value={inProgressCount}
                 subtext={`Dont ${readyCount} prête${readyCount > 1 ? 's' : ''}`}
                 color={IN_PROGRESS_CARD_COLOR}
                 navigateLabel="Voir les vidéos en cours"
-                onNavigate={onNavigateToInProgress}
+                onNavigate={() =>
+                  onNavigateToInProgress(formatFilter === 'all' ? undefined : formatFilter)
+                }
               />
               <StatCard
                 label="Idées de vidéos"
                 value={ideaCount}
                 color={IDEAS_CARD_COLOR}
                 navigateLabel="Voir les idées"
-                onNavigate={onNavigateToIdeas}
+                onNavigate={() =>
+                  onNavigateToIdeas(formatFilter === 'all' ? undefined : formatFilter)
+                }
               />
+            </div>
+
+            {/* Shorts and long-form videos have very different rhythms — this toggle focuses
+                every status section below on just one format's pipeline, without the two paces
+                blending together. */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-gray-500">Format</span>
+              <div className="flex gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-1">
+                <button
+                  type="button"
+                  onClick={() => setFormatFilter('all')}
+                  className={`rounded-md px-3 py-1 text-sm transition-colors ${
+                    formatFilter === 'all'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  Tout
+                </button>
+                {CONTENT_FORMATS.map((f) => (
+                  <button
+                    key={f.value}
+                    type="button"
+                    onClick={() => setFormatFilter(f.value)}
+                    className={`rounded-md px-3 py-1 text-sm transition-colors ${
+                      formatFilter === f.value
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    {f.emoji} {f.pluralLabel}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Each column renders exactly the sections assigned to it in the paramètres, in
@@ -669,6 +757,7 @@ export function OverviewTab({
               <div className="space-y-4">
                 {settings.overviewColumnLeft
                   .filter((id) => settings.overviewVisibleSections.includes(id))
+                  .filter((id) => id !== 'objects' || settings.showTagsAndObjects)
                   .map((id) => (
                     <div key={id}>{sectionElements[id]}</div>
                   ))}
@@ -676,6 +765,7 @@ export function OverviewTab({
               <div className="space-y-4">
                 {settings.overviewColumnRight
                   .filter((id) => settings.overviewVisibleSections.includes(id))
+                  .filter((id) => id !== 'objects' || settings.showTagsAndObjects)
                   .map((id) => (
                     <div key={id}>{sectionElements[id]}</div>
                   ))}

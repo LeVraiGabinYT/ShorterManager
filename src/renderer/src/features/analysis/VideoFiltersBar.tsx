@@ -1,5 +1,6 @@
 import { useState, type ReactElement } from 'react'
 import type { OwnedObject, Series, Tag } from '@shared/types'
+import { useIdeasData } from '../../hooks/useIdeasData'
 import { getTagChipStyle } from '../../lib/tagColors'
 import {
   DEFAULT_VIDEO_FILTERS,
@@ -83,6 +84,7 @@ export function VideoFiltersBar({
   objects,
   series
 }: VideoFiltersBarProps): ReactElement {
+  const { settings } = useIdeasData()
   const [expanded, setExpanded] = useState(false)
   const [tagQuery, setTagQuery] = useState('')
   const [objectQuery, setObjectQuery] = useState('')
@@ -160,98 +162,102 @@ export function VideoFiltersBar({
       {expanded && (
         <div className="grid grid-cols-1 gap-6 border-t border-white/10 p-3 sm:grid-cols-2">
           <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-medium text-gray-400 mb-1">Tags</label>
-                {filters.tagIds.length > 1 && (
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <button
-                      type="button"
-                      onClick={() => onChange({ ...filters, tagMode: 'any' })}
-                      className={filters.tagMode === 'any' ? 'text-blue-300' : ''}
-                    >
-                      Au moins un
-                    </button>
-                    <span>/</span>
-                    <button
-                      type="button"
-                      onClick={() => onChange({ ...filters, tagMode: 'all' })}
-                      className={filters.tagMode === 'all' ? 'text-blue-300' : ''}
-                    >
-                      Tous
-                    </button>
-                  </div>
-                )}
-              </div>
-              {tags.length === 0 ? (
-                <p className="text-xs text-gray-600">Aucun tag créé pour l’instant.</p>
-              ) : (
-                <>
-                  {tags.length > 6 && (
-                    <input
-                      value={tagQuery}
-                      onChange={(e) => setTagQuery(e.target.value)}
-                      placeholder="Rechercher un tag..."
-                      className="mb-1.5 w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-gray-100 outline-none focus:border-blue-500/60"
-                    />
-                  )}
-                  <div className="flex flex-wrap gap-1.5">
-                    {visibleTags.map((tag) => {
-                      const selected = filters.tagIds.includes(tag.id)
-                      return (
+            {settings.showTagsAndObjects && (
+              <>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-medium text-gray-400 mb-1">Tags</label>
+                    {filters.tagIds.length > 1 && (
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
                         <button
                           type="button"
-                          key={tag.id}
-                          onClick={() => toggleTag(tag.id)}
-                          style={selected ? getTagChipStyle(tag.color) : undefined}
-                          className={`rounded-md border px-2 py-1 text-xs ${
-                            selected
-                              ? ''
-                              : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
-                          }`}
+                          onClick={() => onChange({ ...filters, tagMode: 'any' })}
+                          className={filters.tagMode === 'any' ? 'text-blue-300' : ''}
                         >
-                          {tag.name}
+                          Au moins un
                         </button>
-                      )
-                    })}
+                        <span>/</span>
+                        <button
+                          type="button"
+                          onClick={() => onChange({ ...filters, tagMode: 'all' })}
+                          className={filters.tagMode === 'all' ? 'text-blue-300' : ''}
+                        >
+                          Tous
+                        </button>
+                      </div>
+                    )}
                   </div>
-                </>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1">Objets</label>
-              {objects.length === 0 ? (
-                <p className="text-xs text-gray-600">Aucun objet enregistré pour l’instant.</p>
-              ) : (
-                <>
-                  {objects.length > 6 && (
-                    <input
-                      value={objectQuery}
-                      onChange={(e) => setObjectQuery(e.target.value)}
-                      placeholder="Rechercher un objet..."
-                      className="mb-1.5 w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-gray-100 outline-none focus:border-blue-500/60"
-                    />
+                  {tags.length === 0 ? (
+                    <p className="text-xs text-gray-600">Aucun tag créé pour l’instant.</p>
+                  ) : (
+                    <>
+                      {tags.length > 6 && (
+                        <input
+                          value={tagQuery}
+                          onChange={(e) => setTagQuery(e.target.value)}
+                          placeholder="Rechercher un tag..."
+                          className="mb-1.5 w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-gray-100 outline-none focus:border-blue-500/60"
+                        />
+                      )}
+                      <div className="flex flex-wrap gap-1.5">
+                        {visibleTags.map((tag) => {
+                          const selected = filters.tagIds.includes(tag.id)
+                          return (
+                            <button
+                              type="button"
+                              key={tag.id}
+                              onClick={() => toggleTag(tag.id)}
+                              style={selected ? getTagChipStyle(tag.color) : undefined}
+                              className={`rounded-md border px-2 py-1 text-xs ${
+                                selected
+                                  ? ''
+                                  : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                              }`}
+                            >
+                              {tag.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </>
                   )}
-                  <div className="flex flex-wrap gap-1.5">
-                    {visibleObjects.map((obj) => (
-                      <button
-                        type="button"
-                        key={obj.id}
-                        onClick={() => toggleObject(obj.id)}
-                        className={`rounded-md border px-2 py-1 text-xs transition-colors ${
-                          filters.objectIds.includes(obj.id)
-                            ? 'border-blue-500/60 bg-blue-500/20 text-blue-200'
-                            : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
-                        }`}
-                      >
-                        {obj.name}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1">Objets</label>
+                  {objects.length === 0 ? (
+                    <p className="text-xs text-gray-600">Aucun objet enregistré pour l’instant.</p>
+                  ) : (
+                    <>
+                      {objects.length > 6 && (
+                        <input
+                          value={objectQuery}
+                          onChange={(e) => setObjectQuery(e.target.value)}
+                          placeholder="Rechercher un objet..."
+                          className="mb-1.5 w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-gray-100 outline-none focus:border-blue-500/60"
+                        />
+                      )}
+                      <div className="flex flex-wrap gap-1.5">
+                        {visibleObjects.map((obj) => (
+                          <button
+                            type="button"
+                            key={obj.id}
+                            onClick={() => toggleObject(obj.id)}
+                            className={`rounded-md border px-2 py-1 text-xs transition-colors ${
+                              filters.objectIds.includes(obj.id)
+                                ? 'border-blue-500/60 bg-blue-500/20 text-blue-200'
+                                : 'border-white/10 bg-white/5 text-gray-400 hover:bg-white/10'
+                            }`}
+                          >
+                            {obj.name}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
 
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1">Série</label>

@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react'
 import type { IdeaStatus, OwnedObject, Series, Tag, VideoIdea } from '@shared/types'
-import { IDEA_STATUSES } from '@shared/types'
+import { CONTENT_FORMATS, IDEA_STATUSES } from '@shared/types'
 import { CountdownBadge } from '../../components/CountdownBadge'
+import { useIdeasData } from '../../hooks/useIdeasData'
 import { formatDate, formatNumber } from '../../lib/format'
 import { getEffectiveStatus } from '../../lib/ideaStatus'
 import { getTagChipStyle } from '../../lib/tagColors'
@@ -39,6 +40,7 @@ export function IdeaListRow({
   onClick,
   trailingAction
 }: IdeaListRowProps): ReactElement {
+  const { settings } = useIdeasData()
   const { status, missingObjects } = getEffectiveStatus(
     idea,
     objectsById,
@@ -46,9 +48,10 @@ export function IdeaListRow({
   )
   const statusLabel = IDEA_STATUSES.find((s) => s.value === status)?.label ?? status
   const series = idea.seriesId !== null ? (seriesById.get(idea.seriesId) ?? null) : null
-  const ideaTags = showTags
-    ? idea.tagIds.map((id) => tagsById.get(id)).filter((t): t is Tag => t !== undefined)
-    : []
+  const ideaTags =
+    showTags && settings.showTagsAndObjects
+      ? idea.tagIds.map((id) => tagsById.get(id)).filter((t): t is Tag => t !== undefined)
+      : []
 
   return (
     <div
@@ -84,7 +87,13 @@ export function IdeaListRow({
               {statusLabel}
             </span>
 
-            {missingObjects && (
+            {idea.format === 'long' && (
+              <span className="shrink-0 rounded-full border border-indigo-500/40 bg-indigo-500/20 px-2 py-0.5 text-xs font-medium text-indigo-300">
+                {CONTENT_FORMATS[1].emoji} {CONTENT_FORMATS[1].label}
+              </span>
+            )}
+
+            {settings.showTagsAndObjects && missingObjects && (
               <span className="shrink-0 rounded-full border border-red-500/40 bg-red-500/20 px-2 py-0.5 text-xs font-medium text-red-300">
                 Objets manquants
               </span>
@@ -121,7 +130,7 @@ export function IdeaListRow({
           </div>
         </div>
 
-        {showTags && ideaTags.length > 0 && (
+        {showTags && settings.showTagsAndObjects && ideaTags.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {ideaTags.map((tag) => (
               <span

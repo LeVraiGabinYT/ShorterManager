@@ -2,6 +2,7 @@ import { useState, type ReactElement } from 'react'
 import { IDEA_STATUSES } from '@shared/types'
 import type { IdeaStatus, OwnedObject, Series, Tag } from '@shared/types'
 import { SearchablePicker } from '../../components/SearchablePicker'
+import { useIdeasData } from '../../hooks/useIdeasData'
 import { randomTagColor } from '../../lib/tagColors'
 
 interface BulkActionsBarProps {
@@ -92,6 +93,7 @@ export function BulkActionsBar({
   onClear,
   onTagsChanged
 }: BulkActionsBarProps): ReactElement {
+  const { settings } = useIdeasData()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [emojiInput, setEmojiInput] = useState('')
 
@@ -112,45 +114,49 @@ export function BulkActionsBar({
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1.5 text-xs text-gray-400">
-          Ajouter le tag
-          <div className="w-40">
-            <SearchablePicker
-              items={tags}
-              getKey={(tag) => tag.id}
-              getLabel={(tag) => tag.name}
-              onSelect={(tag) => onAddTag(tag.id)}
-              placeholder="Rechercher un tag..."
-              emptyLabel="Aucun tag créé."
-            />
-          </div>
-        </div>
+        {settings.showTagsAndObjects && (
+          <>
+            <div className="flex items-center gap-1.5 text-xs text-gray-400">
+              Ajouter le tag
+              <div className="w-40">
+                <SearchablePicker
+                  items={tags}
+                  getKey={(tag) => tag.id}
+                  getLabel={(tag) => tag.name}
+                  onSelect={(tag) => onAddTag(tag.id)}
+                  placeholder="Rechercher un tag..."
+                  emptyLabel="Aucun tag créé."
+                />
+              </div>
+            </div>
 
-        <NewTagControl onAddTag={onAddTag} onTagsChanged={onTagsChanged} />
+            <NewTagControl onAddTag={onAddTag} onTagsChanged={onTagsChanged} />
 
-        {objects.length > 0 && (
-          <label className="flex items-center gap-1.5 text-xs text-gray-400">
-            Ajouter l’objet
-            <select
-              defaultValue=""
-              onChange={(e) => {
-                if (e.target.value) {
-                  onAddObject(Number(e.target.value))
-                  e.target.value = ''
-                }
-              }}
-              className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-gray-100 outline-none focus:border-blue-500/60"
-            >
-              <option value="" className="bg-[#15161a]">
-                Choisir...
-              </option>
-              {objects.map((obj) => (
-                <option key={obj.id} value={obj.id} className="bg-[#15161a]">
-                  {obj.name}
-                </option>
-              ))}
-            </select>
-          </label>
+            {objects.length > 0 && (
+              <label className="flex items-center gap-1.5 text-xs text-gray-400">
+                Ajouter l’objet
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      onAddObject(Number(e.target.value))
+                      e.target.value = ''
+                    }
+                  }}
+                  className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-gray-100 outline-none focus:border-blue-500/60"
+                >
+                  <option value="" className="bg-[#15161a]">
+                    Choisir...
+                  </option>
+                  {objects.map((obj) => (
+                    <option key={obj.id} value={obj.id} className="bg-[#15161a]">
+                      {obj.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </>
         )}
 
         <label className="flex items-center gap-1.5 text-xs text-gray-400">

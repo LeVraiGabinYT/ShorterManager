@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { getAppInfo } from './appInfo'
+import { getAppInfo, getLaunchAtStartup, setLaunchAtStartup } from './appInfo'
 import {
   checkForUpdatesNow,
   downloadUpdateNow,
@@ -80,6 +80,7 @@ import {
 import type {
   AppSettings,
   BackupMode,
+  ContentFormat,
   InspirationGroupInput,
   InspirationInput,
   OwnedObjectInput,
@@ -125,8 +126,10 @@ export function registerIpcHandlers(): void {
       }
     }
   })
-  ipcMain.handle('channel:createIdeaFromVideo', (_event, youtubeVideoId: string) =>
-    createIdeaFromVideo(youtubeVideoId)
+  ipcMain.handle(
+    'channel:createIdeaFromVideo',
+    (_event, youtubeVideoId: string, format: ContentFormat) =>
+      createIdeaFromVideo(youtubeVideoId, format)
   )
   ipcMain.handle('channel:linkVideoToIdea', (_event, youtubeVideoId: string, ideaId: number) =>
     linkVideoToIdea(youtubeVideoId, ideaId)
@@ -236,6 +239,10 @@ export function registerIpcHandlers(): void {
   )
 
   ipcMain.handle('app:getInfo', () => getAppInfo())
+  ipcMain.handle('app:getLaunchAtStartup', () => getLaunchAtStartup())
+  ipcMain.handle('app:setLaunchAtStartup', (_event, enabled: boolean) =>
+    setLaunchAtStartup(enabled)
+  )
 
   ipcMain.handle('settings:get', () => loadSettings())
   ipcMain.handle('settings:update', (_event, patch: Partial<AppSettings>) => updateSettings(patch))

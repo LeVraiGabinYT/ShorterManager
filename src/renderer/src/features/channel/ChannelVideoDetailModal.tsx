@@ -1,7 +1,10 @@
 import { useState, type ReactElement } from 'react'
-import type { PublishedVideo, Tag, VideoIdea } from '@shared/types'
+import { CONTENT_FORMATS } from '@shared/types'
+import type { ContentFormat, PublishedVideo, Tag, VideoIdea } from '@shared/types'
 import { SearchablePicker } from '../../components/SearchablePicker'
+import { useIdeasData } from '../../hooks/useIdeasData'
 import { formatDate } from '../../lib/format'
+import { getLastUsedIdeaFormat } from '../../lib/ideaFormatMemory'
 import { TagPicker } from '../tags/TagPicker'
 
 interface ChannelVideoDetailModalProps {
@@ -10,7 +13,7 @@ interface ChannelVideoDetailModalProps {
   unlinkedIdeas: VideoIdea[]
   tags: Tag[]
   onClose: () => void
-  onAddToList: () => void
+  onAddToList: (format: ContentFormat) => void
   onLinkToIdea: (ideaId: number) => void
   onUnlink: () => void
   onSetTags: (tagIds: number[]) => void
@@ -29,7 +32,9 @@ export function ChannelVideoDetailModal({
   onSetTags,
   onTagsChanged
 }: ChannelVideoDetailModalProps): ReactElement {
+  const { settings } = useIdeasData()
   const [directTagIds, setDirectTagIds] = useState<number[]>(video.tagIds)
+  const [format, setFormat] = useState<ContentFormat>(getLastUsedIdeaFormat())
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -57,26 +62,28 @@ export function ChannelVideoDetailModal({
           )}
         </div>
 
-        <div className="mt-4">
-          <label className="block text-xs font-medium text-gray-400 mb-1">
-            {linkedIdea ? 'Tags (hérités de l’idée liée)' : 'Tags'}
-          </label>
-          {linkedIdea ? (
-            <p className="text-xs text-gray-500">
-              Modifie les tags depuis l’idée « {linkedIdea.title} » dans l’onglet Idées.
-            </p>
-          ) : (
-            <TagPicker
-              tags={tags}
-              selectedIds={directTagIds}
-              onChange={(ids) => {
-                setDirectTagIds(ids)
-                onSetTags(ids)
-              }}
-              onTagsChanged={onTagsChanged}
-            />
-          )}
-        </div>
+        {settings.showTagsAndObjects && (
+          <div className="mt-4">
+            <label className="block text-xs font-medium text-gray-400 mb-1">
+              {linkedIdea ? 'Tags (hérités de l’idée liée)' : 'Tags'}
+            </label>
+            {linkedIdea ? (
+              <p className="text-xs text-gray-500">
+                Modifie les tags depuis l’idée « {linkedIdea.title} » dans l’onglet Idées.
+              </p>
+            ) : (
+              <TagPicker
+                tags={tags}
+                selectedIds={directTagIds}
+                onChange={(ids) => {
+                  setDirectTagIds(ids)
+                  onSetTags(ids)
+                }}
+                onTagsChanged={onTagsChanged}
+              />
+            )}
+          </div>
+        )}
 
         <div className="mt-5 border-t border-white/10 pt-4">
           {linkedIdea ? (
@@ -90,8 +97,30 @@ export function ChannelVideoDetailModal({
             </div>
           ) : (
             <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1">
+                  Format de contenu
+                </label>
+                <div className="flex gap-1 rounded-md border border-white/10 bg-white/5 p-1">
+                  {CONTENT_FORMATS.map((f) => (
+                    <button
+                      key={f.value}
+                      type="button"
+                      onClick={() => setFormat(f.value)}
+                      className={`flex-1 rounded px-3 py-1.5 text-sm transition-colors ${
+                        format === f.value
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                    >
+                      {f.emoji} {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <button
-                onClick={onAddToList}
+                onClick={() => onAddToList(format)}
                 className="w-full rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
               >
                 Ajouter à la liste d’idées (nouvelle idée « Publiée »)

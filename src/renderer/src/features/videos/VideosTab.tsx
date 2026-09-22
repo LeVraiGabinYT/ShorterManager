@@ -4,8 +4,13 @@ import { IdeasTab } from '../ideas/IdeasTab'
 import { SeriesTab } from '../series/SeriesTab'
 import { TasksTab } from '../tasks/TasksTab'
 
+// Shorts and long-form videos are two fully separate main tabs, not one "Idées" tab with a
+// format toggle — their pace is different enough (many Shorts a week vs. one long-form video
+// every 1-2 weeks) that each deserves its own dedicated space: own filters, own sort, own view
+// mode, remembered independently (see IdeasTab's per-format storage keys).
 const SUB_TABS = [
-  { id: 'ideas', label: 'Idées' },
+  { id: 'shorts', label: '🎬 Shorts' },
+  { id: 'longs', label: '🎞️ Vidéos longues' },
   { id: 'tasks', label: 'Tâches' },
   { id: 'series', label: 'Séries' },
   { id: 'channel', label: 'Chaîne YouTube' }
@@ -15,7 +20,7 @@ export type VideosSubTabId = (typeof SUB_TABS)[number]['id']
 export const VIDEOS_SUB_TAB_IDS: VideosSubTabId[] = SUB_TABS.map((t) => t.id)
 
 // Which quick filter preset (see IdeasTab's own "Idées" / "En cours" chips) to activate as soon
-// as the Idées sub-tab mounts — set by whichever caller navigated here, e.g. one of Vue
+// as the Shorts/Longues sub-tab mounts — set by whichever caller navigated here, e.g. one of Vue
 // d'ensemble's stat-card "Voir..." links. null means "no preset, use whatever was last saved".
 export type IdeasFilterPreset = 'ideasOnly' | 'inProgress' | null
 
@@ -58,8 +63,18 @@ export function VideosTab({
       </nav>
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        {activeSubTab === 'ideas' && (
+        {activeSubTab === 'shorts' && (
           <IdeasTab
+            format="short"
+            activateFilterPreset={ideasFilterPreset ?? undefined}
+            onFilterPresetActivated={onIdeasFilterPresetConsumed}
+            openIdeaId={openIdeaId}
+            onOpenIdeaConsumed={onOpenIdeaConsumed}
+          />
+        )}
+        {activeSubTab === 'longs' && (
+          <IdeasTab
+            format="long"
             activateFilterPreset={ideasFilterPreset ?? undefined}
             onFilterPresetActivated={onIdeasFilterPresetConsumed}
             openIdeaId={openIdeaId}

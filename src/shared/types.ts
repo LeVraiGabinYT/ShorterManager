@@ -12,6 +12,17 @@ export const IDEA_STATUSES = [
 
 export type IdeaStatus = (typeof IDEA_STATUSES)[number]['value']
 
+// The two content formats a channel publishes — kept as a single explicit field on every idea
+// (rather than inferred from anything else) precisely because their pace differs so much (many
+// Shorts a week vs. one long-form video every week or two): every screen that lists or counts
+// ideas needs to be able to split or flag by this axis without guessing.
+export const CONTENT_FORMATS = [
+  { value: 'short', label: 'Short', pluralLabel: 'Shorts', emoji: '🎬' },
+  { value: 'long', label: 'Vidéo longue', pluralLabel: 'Vidéos longues', emoji: '🎞️' }
+] as const
+
+export type ContentFormat = (typeof CONTENT_FORMATS)[number]['value']
+
 // Current default look of each status badge — the customizable "statusColors" setting starts
 // from these values.
 export const DEFAULT_STATUS_COLORS: Record<IdeaStatus, string> = {
@@ -125,7 +136,11 @@ export interface VideoIdea {
   id: number
   title: string
   description: string | null
+  // Rich-text (HTML) script of the video, written with ScriptEditor — separate from the plain-text
+  // `description` above, which is just a short private note.
+  script: string | null
   emoji: string | null
+  format: ContentFormat
   status: IdeaStatus
   publishDate: string | null
   shootDate: string | null
@@ -401,6 +416,10 @@ export interface AppSettings {
   // "Personnalisation" (Paramètres).
   statusColors: Record<IdeaStatus, string>
   showTagsOnIdeaCard: boolean
+  // Global "Simplifier l'outil" toggle: when false, tags/objets and everything that manages or
+  // displays them (the Propriétés tab, tag/object pickers, filters, badges...) are hidden from the
+  // UI app-wide — the underlying data and Propriétés tab are never touched, just not surfaced.
+  showTagsAndObjects: boolean
   // Vue d'ensemble customization: each section belongs to exactly one of the two columns (moving
   // a section between columns is how the user controls how many sections land on each side, not
   // just their order), independent from visibility — dragging a hidden section doesn't require
@@ -504,7 +523,9 @@ export interface ShorterManagerApi {
     disconnect: () => Promise<void>
     listVideos: () => Promise<PublishedVideo[]>
     refreshVideos: () => Promise<{ videos: PublishedVideo[]; error?: string }>
-    createIdeaFromVideo: (youtubeVideoId: string) => Promise<VideoIdea>
+    // No default/optional format here on purpose — see createIdeaFromVideo's own comment in
+    // src/main/youtube/videos.ts for why this is enforced at the type level.
+    createIdeaFromVideo: (youtubeVideoId: string, format: ContentFormat) => Promise<VideoIdea>
     linkVideoToIdea: (youtubeVideoId: string, ideaId: number) => Promise<VideoIdea>
     unlinkVideo: (youtubeVideoId: string) => Promise<void>
     setVideoTags: (youtubeVideoId: string, tagIds: number[]) => Promise<void>
@@ -567,6 +588,12 @@ export interface ShorterManagerApi {
   }
   app: {
     getInfo: () => Promise<AppInfo>
+    // Whether the app is registered to launch when Windows (or macOS/Linux) starts — backed by
+    // the OS's own login-item mechanism (Electron's app.setLoginItemSettings), never by our own
+    // settings.json, so it always reflects what's actually registered even if that changed
+    // outside the app (e.g. Task Manager's Startup tab on Windows).
+    getLaunchAtStartup: () => Promise<boolean>
+    setLaunchAtStartup: (enabled: boolean) => Promise<boolean>
   }
   settings: {
     get: () => Promise<AppSettings>

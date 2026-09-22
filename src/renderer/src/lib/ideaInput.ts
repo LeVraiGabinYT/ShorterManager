@@ -5,6 +5,8 @@ export function toIdeaInput(idea: VideoIdea): VideoIdeaInput {
     title: idea.title,
     emoji: idea.emoji,
     description: idea.description,
+    script: idea.script,
+    format: idea.format,
     status: idea.status,
     publishDate: idea.publishDate,
     shootDate: idea.shootDate,

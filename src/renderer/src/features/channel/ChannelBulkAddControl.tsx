@@ -1,5 +1,8 @@
 import { useState, type ReactElement } from 'react'
-import type { OwnedObject, Series, Tag } from '@shared/types'
+import { CONTENT_FORMATS } from '@shared/types'
+import type { ContentFormat, OwnedObject, Series, Tag } from '@shared/types'
+import { useIdeasData } from '../../hooks/useIdeasData'
+import { getLastUsedIdeaFormat } from '../../lib/ideaFormatMemory'
 import { SeriesPicker } from '../series/SeriesPicker'
 import { TagPicker } from '../tags/TagPicker'
 
@@ -8,7 +11,13 @@ interface ChannelBulkAddControlProps {
   tags: Tag[]
   objects: OwnedObject[]
   series: Series[]
-  onAdd: (tagIds: number[], objectIds: number[], seriesId: number | null, emoji: string) => void
+  onAdd: (
+    tagIds: number[],
+    objectIds: number[],
+    seriesId: number | null,
+    emoji: string,
+    format: ContentFormat
+  ) => void
   onTagsChanged: () => Promise<void>
   onSeriesChanged: () => Promise<void>
 }
@@ -22,10 +31,12 @@ export function ChannelBulkAddControl({
   onTagsChanged,
   onSeriesChanged
 }: ChannelBulkAddControlProps): ReactElement {
+  const { settings } = useIdeasData()
   const [tagIds, setTagIds] = useState<number[]>([])
   const [objectIds, setObjectIds] = useState<number[]>([])
   const [seriesId, setSeriesId] = useState<number | null>(null)
   const [emoji, setEmoji] = useState('')
+  const [format, setFormat] = useState<ContentFormat>(getLastUsedIdeaFormat())
 
   function toggleObject(id: number): void {
     setObjectIds((prev) => (prev.includes(id) ? prev.filter((o) => o !== id) : [...prev, id]))
@@ -38,19 +49,21 @@ export function ChannelBulkAddControl({
         {selectedCount > 1 ? 's' : ''}
       </p>
 
-      <div>
-        <label className="mb-1 block text-xs font-medium text-gray-400">
-          Tags à ajouter aux idées créées/fusionnées
-        </label>
-        <TagPicker
-          tags={tags}
-          selectedIds={tagIds}
-          onChange={setTagIds}
-          onTagsChanged={onTagsChanged}
-        />
-      </div>
+      {settings.showTagsAndObjects && (
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-400">
+            Tags à ajouter aux idées créées/fusionnées
+          </label>
+          <TagPicker
+            tags={tags}
+            selectedIds={tagIds}
+            onChange={setTagIds}
+            onTagsChanged={onTagsChanged}
+          />
+        </div>
+      )}
 
-      {objects.length > 0 && (
+      {settings.showTagsAndObjects && objects.length > 0 && (
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-400">Objets à ajouter</label>
           <div className="flex flex-wrap gap-1.5">
@@ -71,6 +84,24 @@ export function ChannelBulkAddControl({
           </div>
         </div>
       )}
+
+      <div>
+        <label className="mb-1 block text-xs font-medium text-gray-400">Format de contenu</label>
+        <div className="flex gap-1 rounded-md border border-white/10 bg-white/5 p-1">
+          {CONTENT_FORMATS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setFormat(f.value)}
+              className={`flex-1 rounded px-3 py-1.5 text-sm transition-colors ${
+                format === f.value ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              {f.emoji} {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="flex gap-3">
         <div className="flex-1">
@@ -95,7 +126,7 @@ export function ChannelBulkAddControl({
 
       <button
         type="button"
-        onClick={() => onAdd(tagIds, objectIds, seriesId, emoji.trim())}
+        onClick={() => onAdd(tagIds, objectIds, seriesId, emoji.trim(), format)}
         className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
       >
         Ajouter à la liste d’idées
